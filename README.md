@@ -47,6 +47,33 @@ Ports are mapped from the docker-compose file.
 | Access Control | `egov-accesscontrol` | `8090` |
 | Persister | `egov-persister` | `8091` |
 
+## Resource Estimates (All Services Running)
+
+Approximate idle/low-load memory usage per service. Actual usage varies by workload and data volume.
+
+| Service | Estimated RAM |
+| --- | --- |
+| Postgres | 400–800 MB |
+| Redis | 50–150 MB |
+| Kafka (KRaft) | 800–1400 MB |
+| Elasticsearch | 650–900 MB |
+| egov-enc-service | 200–400 MB |
+| egov-mdms-service | 300–500 MB |
+| egov-idgen | 250–450 MB |
+| egov-user | 400–700 MB |
+| egov-workflow-v2 | 350–600 MB |
+| egov-localization | 300–500 MB |
+| egov-location | 300–500 MB |
+| egov-accesscontrol | 250–450 MB |
+| egov-persister | 200–400 MB |
+
+Overall estimate for this stack (idle/low load):
+- Services total: ~5.5–8.5 GB RAM
+- Plus OS + Docker overhead: ~2–4 GB
+- Practical minimum: 10–12 GB RAM
+- Comfortable: 16 GB RAM
+- CPU: 4–6 cores recommended (2–3 cores will be sluggish)
+
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine)
