@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# digit-2.9lts-core-storm
-Run DIGIT 2.9 LTS core services locally with Docker Compose
-=======
 # DIGIT Core Services - Docker Compose
 
 Run a minimal DIGIT core stack locally with Postgres, Redis, Kafka, Elasticsearch, and the core platform services. This repo includes seed data for the tenant "pg" (short for playground) and a Postman collection for quick validation.
