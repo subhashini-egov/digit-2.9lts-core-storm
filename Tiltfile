@@ -64,6 +64,14 @@ dc_resource('egov-persister', labels=['core-services'],
         link('http://localhost:18091/common-persist/actuator/health', 'Health'),
     ])
 
+# ==================== API Gateway ====================
+dc_resource('kong', labels=['gateway'],
+    links=[
+        link('http://localhost:18000', 'Proxy'),
+        link('http://localhost:18001', 'Admin API'),
+        link('http://localhost:18002', 'Manager GUI'),
+    ])
+
 # ==================== Seed Jobs ====================
 dc_resource('db-seed', labels=['seeds'], auto_init=True)
 dc_resource('idgen-seed', labels=['seeds'], auto_init=True)
@@ -100,6 +108,15 @@ cmd_button(
     text='Re-seed MDMS',
 )
 
+# Kong API Gateway test button
+cmd_button(
+    name='kong-test',
+    argv=['./scripts/kong-test.sh', 'test'],
+    location=location.NAV,
+    icon_name='security',
+    text='Kong Test',
+)
+
 # ==================== Port Summary ====================
 # Infrastructure:
 #   - Postgres:      15432
@@ -107,7 +124,13 @@ cmd_button(
 #   - Kafka:         19092
 #   - Elasticsearch: 19200
 #
-# Core Services:
+# API Gateway (Kong):
+#   - Proxy:         18000 (external access point)
+#   - Admin API:     18001
+#   - Manager GUI:   18002
+#   - Status:        18100
+#
+# Core Services (internal, use Kong for external access):
 #   - MDMS:          18094
 #   - ENC:           11234
 #   - IDGEN:         18088
