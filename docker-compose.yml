@@ -159,25 +159,6 @@ services:
     networks:
     - egov-network
 
-  idgen-seed:
-    image: postgres:16
-    depends_on:
-      postgres:
-        condition: service_healthy
-      egov-mdms-service:
-        condition: service_healthy
-    volumes:
-      - ./db/idgen-seed.sql:/idgen-seed.sql:ro
-    entrypoint: >
-      bash -c "
-        echo 'Creating id_generator table for idgen service...';
-        psql postgresql://egov:$${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /idgen-seed.sql
-        echo 'Idgen seed complete'
-      "
-    networks:
-      - egov-network
-    restart: "no"
-
   egov-idgen:
     image: egovio/egov-idgen:v2.9.2-4a60f20
     container_name: egov-idgen
@@ -186,14 +167,16 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
-      idgen-seed:
-        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
-      # Flyway disabled - schema/data managed by idgen-seed.sql
-      SPRING_FLYWAY_ENABLED: 'false'
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
