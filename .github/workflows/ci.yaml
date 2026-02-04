@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, feature/*]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          # Remove unnecessary tools to free space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          df -h
+
+      - name: Start services
+        run: |
+          docker compose up -d
+          echo "Waiting for services to start..."
+
+      - name: Wait for infrastructure
+        run: |
+          echo "Waiting for Postgres..."
+          timeout 120 bash -c 'until docker exec docker-postgres pg_isready -U egov; do sleep 2; done'
+
+          echo "Waiting for Redis..."
+          timeout 60 bash -c 'until docker exec digit-redis redis-cli ping; do sleep 2; done'
+
+          echo "Waiting for Redpanda..."
+          timeout 120 bash -c 'until docker exec digit-redpanda rpk cluster health; do sleep 2; done'
+
+          echo "Waiting for Elasticsearch..."
+          timeout 120 bash -c 'until curl -sf http://localhost:19200/_cluster/health; do sleep 2; done'
+
+      - name: Wait for all containers healthy
+        run: |
+          echo "Waiting for all containers to be healthy (up to 10 minutes)..."
+          # Wait for all services to report healthy via Docker
+          timeout 600 bash -c '
+            while true; do
+              UNHEALTHY=$(docker compose ps --format json | jq -r "select(.Health != \"healthy\" and .Health != \"\" and .State == \"running\") | .Name" | wc -l)
+              TOTAL=$(docker compose ps --format json | jq -r "select(.State == \"running\") | .Name" | wc -l)
+              echo "Healthy containers: $((TOTAL - UNHEALTHY))/$TOTAL"
+              if [ "$UNHEALTHY" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+                echo "All containers healthy!"
+                break
+              fi
+              sleep 10
+            done
+          '
+
+      - name: Wait for seeds to complete
+        run: |
+          echo "Waiting for seed containers to finish..."
+          # Wait for db-seed container to complete (it depends on all other seeds)
+          timeout 300 bash -c 'until docker inspect db-seed-container --format="{{.State.Status}}" 2>/dev/null | grep -q "exited"; do sleep 5; done'
+
+          # Check seed exit code
+          EXIT_CODE=$(docker inspect db-seed-container --format="{{.State.ExitCode}}")
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Seed container failed with exit code $EXIT_CODE"
+            docker logs db-seed-container
+            exit 1
+          fi
+          echo "Seeds completed successfully"
+
+      - name: Run health checks
+        run: |
+          bash scripts/health-check.sh http://localhost
+
+      - name: Run smoke tests
+        run: |
+          bash scripts/smoke-tests.sh http://localhost
+
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker Compose Logs ==="
+          docker compose logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v --remove-orphans

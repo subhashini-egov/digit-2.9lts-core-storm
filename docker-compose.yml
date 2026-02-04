@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:7.2.4
-    container_name: sdcrs-redis
+    container_name: digit-redis
     ports:
     - 16379:6379
     healthcheck:
@@ -36,39 +36,41 @@ services:
     networks:
     - egov-network
 
-  kafka:
-    image: apache/kafka:3.7.0
-    container_name: sdcrs-kafka
-    environment:
-      # KRaft settings
-      - KAFKA_NODE_ID=1
-      - KAFKA_PROCESS_ROLES=broker,controller
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      - CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
-      # Listeners
-      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    container_name: digit-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --memory
+      - 512M
+      - --overprovisioned
+      - --node-id
+      - '0'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr
+      - PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - PLAINTEXT://redpanda:8082
     ports:
-    - 19092:9092
+      - 19092:9092
+      - 18082:8082
     healthcheck:
-      test:
-        - CMD-SHELL
-        - /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1
+      test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
-      timeout: 10s
+      timeout: 5s
       retries: 10
     networks:
-    - egov-network
+      - egov-network
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.3
-    container_name: sdcrs-elasticsearch
+    container_name: digit-elasticsearch
     environment:
     - discovery.type=single-node
     - xpack.security.enabled=false
@@ -132,7 +134,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
@@ -144,7 +146,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8094
       OTEL_TRACES_EXPORTER: none
     ports:
@@ -182,7 +184,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       idgen-seed:
         condition: service_completed_successfully
@@ -199,7 +201,7 @@ services:
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8088
       OTEL_TRACES_EXPORTER: none
       MANAGEMENT_HEALTH_DB_ENABLED: 'false'
@@ -220,7 +222,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -238,7 +240,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SERVER_PORT: 8107
@@ -268,7 +270,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       mdms-workflow-seed:
         condition: service_completed_successfully
@@ -282,7 +284,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8109
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
@@ -307,7 +309,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -321,7 +323,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SERVER_PORT: 8096
@@ -343,7 +345,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
@@ -355,7 +357,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8084
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       OTEL_TRACES_EXPORTER: none
@@ -376,7 +378,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
@@ -390,8 +392,8 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8081
       SERVER_SERVLET_CONTEXT_PATH: /boundary-service
       EGOV_MDMS_HOST: http://egov-mdms-service:8094
@@ -419,7 +421,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
@@ -431,7 +433,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8090
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       OTEL_TRACES_EXPORTER: none
@@ -452,13 +454,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8091
       EGOV_PERSIST_YML_REPO_PATH: /persister-config/
       OTEL_TRACES_EXPORTER: none

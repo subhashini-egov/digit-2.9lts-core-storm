@@ -10,7 +10,7 @@ docker_compose('./docker-compose.yml')
 # ==================== Infrastructure ====================
 dc_resource('postgres', labels=['infrastructure'])
 dc_resource('redis', labels=['infrastructure'])
-dc_resource('kafka', labels=['infrastructure'])
+dc_resource('redpanda', labels=['infrastructure'])
 dc_resource('elasticsearch', labels=['infrastructure'])
 
 # ==================== Core Services ====================

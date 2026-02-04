@@ -1,7 +1,7 @@
 #!/bin/bash
 # Smoke tests for DIGIT core services
 
-BASE_URL="${1:-http://localhost}"
+BASE_URL="${1:-http://0.0.0.0}"
 
 echo "=== DIGIT Core Services Smoke Tests ==="
 echo "Base URL: $BASE_URL"

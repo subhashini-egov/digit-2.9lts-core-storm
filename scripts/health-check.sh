@@ -1,7 +1,7 @@
 #!/bin/bash
 # Quick health check for all DIGIT core services
 
-BASE_URL="${1:-http://localhost}"
+BASE_URL="${1:-http://0.0.0.0}"
 
 echo "=== DIGIT Core Services Health Check ==="
 echo "Base URL: $BASE_URL"
@@ -10,7 +10,7 @@ echo ""
 services=(
   "Postgres:15432:SELECT 1"
   "Redis:16379:PING"
-  "Kafka:19092:broker"
+  "Redpanda:19092:broker"
   "Elasticsearch:19200:/_cluster/health"
   "MDMS:18094:/mdms-v2/health"
   "ENC Service:11234:/egov-enc-service/actuator/health"
@@ -40,14 +40,14 @@ for service in "${services[@]}"; do
       echo -e "[\033[31mFAIL\033[0m] $name (port $port)"
     fi
   elif [[ "$name" == "Redis" ]]; then
-    if docker exec sdcrs-redis redis-cli ping >/dev/null 2>&1; then
+    if docker exec digit-redis redis-cli ping >/dev/null 2>&1; then
       echo -e "[\033[32m OK \033[0m] $name (port $port)"
       healthy=$((healthy + 1))
     else
       echo -e "[\033[31mFAIL\033[0m] $name (port $port)"
     fi
-  elif [[ "$name" == "Kafka" ]]; then
-    if docker exec sdcrs-kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1; then
+  elif [[ "$name" == "Redpanda" ]]; then
+    if docker exec digit-redpanda rpk cluster health >/dev/null 2>&1; then
       echo -e "[\033[32m OK \033[0m] $name (port $port)"
       healthy=$((healthy + 1))
     else
