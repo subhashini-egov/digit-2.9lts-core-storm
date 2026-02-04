@@ -93,6 +93,65 @@ jobs:
 
           echo "All seeds completed successfully!"
 
+      - name: Verify seed data ingestion
+        run: |
+          echo "=== Verifying seed data was ingested ==="
+
+          # Check schema definitions in database
+          echo "1. Checking MDMS schema definitions..."
+          SCHEMA_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM eg_mdms_schema_definition WHERE isactive = true;")
+          SCHEMA_COUNT=$(echo $SCHEMA_COUNT | tr -d ' ')
+          echo "   Found $SCHEMA_COUNT active schema definitions"
+          if [ "$SCHEMA_COUNT" -lt 10 ]; then
+            echo "ERROR: Expected at least 10 schema definitions, found $SCHEMA_COUNT"
+            exit 1
+          fi
+
+          # Check MDMS data records
+          echo "2. Checking MDMS data records..."
+          DATA_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM eg_mdms_data WHERE isactive = true;")
+          DATA_COUNT=$(echo $DATA_COUNT | tr -d ' ')
+          echo "   Found $DATA_COUNT active MDMS data records"
+          if [ "$DATA_COUNT" -lt 100 ]; then
+            echo "ERROR: Expected at least 100 MDMS data records, found $DATA_COUNT"
+            exit 1
+          fi
+
+          # Check tenant data via API
+          echo "3. Checking tenant data via MDMS API..."
+          TENANT_RESPONSE=$(curl -sS -X POST "http://localhost:18094/mdms-v2/v1/_search" \
+            -H 'Content-Type: application/json' \
+            -d '{"RequestInfo":{"apiId":"digit","ver":"1.0","ts":0},"MdmsCriteria":{"tenantId":"pg","moduleDetails":[{"moduleName":"tenant","masterDetails":[{"name":"tenants"}]}]}}')
+          if echo "$TENANT_RESPONSE" | grep -q '"tenantId"'; then
+            echo "   Tenant data verified via API"
+          else
+            echo "ERROR: Tenant data not found via API"
+            echo "$TENANT_RESPONSE"
+            exit 1
+          fi
+
+          # Check localization data
+          echo "4. Checking localization data..."
+          LOC_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM message;")
+          LOC_COUNT=$(echo $LOC_COUNT | tr -d ' ')
+          echo "   Found $LOC_COUNT localization messages"
+          if [ "$LOC_COUNT" -lt 1000 ]; then
+            echo "ERROR: Expected at least 1000 localization messages, found $LOC_COUNT"
+            exit 1
+          fi
+
+          # Check idgen sequence
+          echo "5. Checking IDGEN sequences..."
+          IDGEN_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM id_generator;")
+          IDGEN_COUNT=$(echo $IDGEN_COUNT | tr -d ' ')
+          echo "   Found $IDGEN_COUNT IDGEN sequences"
+          if [ "$IDGEN_COUNT" -lt 1 ]; then
+            echo "ERROR: Expected at least 1 IDGEN sequence, found $IDGEN_COUNT"
+            exit 1
+          fi
+
+          echo "=== All seed data verification passed! ==="
+
       - name: Run health checks
         run: |
           bash scripts/health-check.sh http://localhost
