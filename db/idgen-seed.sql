@@ -1,5 +1,7 @@
--- Create id_generator table for egov-idgen service
--- This must run before egov-idgen starts to avoid Flyway migration errors
+-- Create id_generator table and seed data for egov-idgen service
+-- Flyway is disabled for egov-idgen, so this seed creates everything needed
+
+BEGIN;
 
 -- Create the main table
 CREATE TABLE IF NOT EXISTS id_generator (
@@ -17,25 +19,30 @@ CREATE SEQUENCE IF NOT EXISTS seq_eg_pt_ptid START 1;
 CREATE SEQUENCE IF NOT EXISTS seq_eg_tl_apl START 1;
 CREATE SEQUENCE IF NOT EXISTS seq_eg_pg_rcpt START 1;
 CREATE SEQUENCE IF NOT EXISTS seq_eg_bs_apl START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_egf_bill_dft_num START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_pgr_complaint START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_ws_connection START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_sw_connection START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_pt_assessment START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_fn_firenoc START 1;
+CREATE SEQUENCE IF NOT EXISTS seq_eg_bpa_application START 1;
 
--- Get the next installed_rank for flyway_schema_history
--- Mark all idgen migrations as completed so Flyway skips them
+-- Insert seed data for id_generator
+-- Using ON CONFLICT to handle re-runs safely
 
--- Main migrations
-INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success)
-SELECT COALESCE((SELECT MAX(installed_rank) FROM flyway_schema_history), 0) + 1,
-       '20170829163101', 'id gen create ddl', 'SQL', 'V20170829163101__id_gen_create_ddl.sql', 0, 'egov-seed', NOW(), 0, TRUE
-WHERE NOT EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '20170829163101');
-
-INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success)
-SELECT COALESCE((SELECT MAX(installed_rank) FROM flyway_schema_history), 0) + 1,
-       '20171020231917', 'create swm transaction num seq ddl', 'SQL', 'V20171020231917__create_swm_transaction_num_seq_ddl.sql', 0, 'egov-seed', NOW(), 0, TRUE
-WHERE NOT EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '20171020231917');
-
--- Dev migrations
-INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success)
-SELECT COALESCE((SELECT MAX(installed_rank) FROM flyway_schema_history), 0) + 1,
-       '20171020231801', 'id gen insert swm transaction num format', 'SQL', 'V20171020231801__id_gen_insert_swm_transaction_num_format.sql', 0, 'egov-seed', NOW(), 0, TRUE
-WHERE NOT EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '20171020231801');
+INSERT INTO id_generator (idname, tenantid, format, sequencenumber)
+VALUES
+  ('egf.bill.default.number.format.name', 'default', 'MH-BILL-NUM-[SEQ_EGF_BILL_DFT_NUM]', 1),
+  ('swm.transaction.num', 'default', 'SWM-TRN-[SEQ_SWM_TRN_NUM]', 1),
+  ('pgr.complaint.id', 'pg', 'PGR-[cy:yyyy-MM-dd]-[SEQ_EG_PGR_COMPLAINT]', 1),
+  ('pgr.complaint.id', 'pg.citya', 'PGR-[cy:yyyy-MM-dd]-[SEQ_EG_PGR_COMPLAINT]', 1),
+  ('ws.connection.id', 'pg', 'WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EG_WS_CONNECTION]', 1),
+  ('sw.connection.id', 'pg', 'SW/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EG_SW_CONNECTION]', 1),
+  ('pt.propertyid', 'pg', 'PB-PT-[cy:yyyy-MM-dd]-[SEQ_EG_PT_PTID]', 1),
+  ('pt.assessmentnumber', 'pg', 'AS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EG_PT_ASSESSMENT]', 1),
+  ('tl.aplnumber', 'pg', 'PB-TL-[cy:yyyy-MM-dd]-[SEQ_EG_TL_APL]', 1),
+  ('firenoc.id', 'pg', 'PB-FN-[cy:yyyy-MM-dd]-[SEQ_EG_FN_FIRENOC]', 1),
+  ('bpa.id', 'pg', 'PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BPA_APPLICATION]', 1)
+ON CONFLICT (idname, tenantid) DO NOTHING;
 
 COMMIT;

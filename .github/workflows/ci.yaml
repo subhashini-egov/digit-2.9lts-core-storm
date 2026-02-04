@@ -185,14 +185,13 @@ jobs:
             exit 1
           fi
 
-          # Check idgen table exists
-          echo "5. Checking IDGEN table exists..."
-          TABLE_EXISTS=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'id_generator');")
-          TABLE_EXISTS=$(echo $TABLE_EXISTS | tr -d ' ')
-          if [ "$TABLE_EXISTS" = "t" ]; then
-            echo "   IDGEN table exists"
-          else
-            echo "ERROR: id_generator table does not exist"
+          # Check idgen data
+          echo "5. Checking IDGEN seed data..."
+          IDGEN_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM id_generator;")
+          IDGEN_COUNT=$(echo $IDGEN_COUNT | tr -d ' ')
+          echo "   Found $IDGEN_COUNT IDGEN formats"
+          if [ "$IDGEN_COUNT" -lt 5 ]; then
+            echo "ERROR: Expected at least 5 IDGEN formats, found $IDGEN_COUNT"
             exit 1
           fi
 

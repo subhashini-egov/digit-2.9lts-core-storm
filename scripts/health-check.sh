@@ -14,8 +14,7 @@ services=(
   "Elasticsearch:19200:/_cluster/health"
   "MDMS:18094:/mdms-v2/health"
   "ENC Service:11234:/egov-enc-service/actuator/health"
-  # IDGEN temporarily disabled - Flyway migration conflicts with seed
-  # "IDGEN:18088:/egov-idgen/health"
+  "IDGEN:18088:/egov-idgen/health"
   "User:18107:/user/health"
   "Workflow:18109:/egov-workflow-v2/health"
   "Localization:18096:/localization/actuator/health"
