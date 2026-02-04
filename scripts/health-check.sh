@@ -22,7 +22,7 @@ services=(
   "Boundary-v2:18081:/boundary-service/actuator/health"
   "AccessControl:18090:/access/health"
   "Persister:18091:/common-persist/actuator/health"
-  "PGR-Services:18082:/pgr-services/health"
+  "PGR-Services:18083:/pgr-services/health"
   "DIGIT-UI:18080:/digit-ui/"
 )
 

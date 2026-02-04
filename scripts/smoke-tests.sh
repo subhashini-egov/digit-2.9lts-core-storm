@@ -104,7 +104,7 @@ fi
 
 # Test 9: PGR service health
 echo -n "9. PGR service health... "
-response=$(curl -sS "$BASE_URL:18082/pgr-services/health" 2>&1)
+response=$(curl -sS "$BASE_URL:18083/pgr-services/health" 2>&1)
 if echo "$response" | grep -q "UP"; then
   echo -e "\033[32mPASS\033[0m"
   passed=$((passed + 1))

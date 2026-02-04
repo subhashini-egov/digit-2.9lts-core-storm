@@ -618,7 +618,7 @@ services:
       JAVA_OPTS: '-Xmx192m -Xms192m'
       OTEL_TRACES_EXPORTER: none
     ports:
-      - "18082:8080"
+      - "18083:8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/pgr-services/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
