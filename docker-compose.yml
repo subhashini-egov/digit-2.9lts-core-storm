@@ -74,7 +74,7 @@ services:
     environment:
     - discovery.type=single-node
     - xpack.security.enabled=false
-    - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    - ES_JAVA_OPTS=-Xms256m -Xmx384m
     volumes:
     - es_data:/usr/share/elasticsearch/data
     ports:
@@ -118,6 +118,7 @@ services:
       EGOV_MDMS_SEARCH_ENDPOINT: /mdms-v2/v1/_search
       EGOV_STATE_LEVEL_TENANT_ID: pg
       STATE_LEVEL_TENANT_ID: pg.citya
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 11234:1234
     healthcheck:
@@ -151,6 +152,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8094
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 18094:8094
     healthcheck:
@@ -194,6 +196,7 @@ services:
       SERVER_PORT: 8088
       OTEL_TRACES_EXPORTER: none
       MANAGEMENT_HEALTH_DB_ENABLED: 'false'
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 18088:8088
     healthcheck:
@@ -245,6 +248,7 @@ services:
       EGOV_STATE_LEVEL_TENANT_ID: pg
       STATE_LEVEL_TENANT_ID: pg
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m
     ports:
     - 18107:8107
     healthcheck:
@@ -285,6 +289,7 @@ services:
       STATE_LEVEL_TENANT_ID: pg.citya
       EGOV_STATE_LEVEL_TENANT_ID: pg
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     ports:
     - 18109:8109
     healthcheck:
@@ -322,6 +327,7 @@ services:
       SPRING_REDIS_PORT: 6379
       SERVER_PORT: 8096
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     ports:
     - 18096:8096
     healthcheck:
@@ -356,6 +362,7 @@ services:
       SERVER_PORT: 8084
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 18084:8084
     healthcheck:
@@ -400,6 +407,7 @@ services:
       STATE_LEVEL_TENANT_ID: pg
       OTEL_TRACES_EXPORTER: none
       MANAGEMENT_HEALTH_DB_ENABLED: 'false'
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 18081:8081
     healthcheck:
@@ -434,6 +442,7 @@ services:
       SERVER_PORT: 8090
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
     - 18090:8090
     healthcheck:
@@ -461,6 +470,7 @@ services:
       SERVER_PORT: 8091
       EGOV_PERSIST_YML_REPO_PATH: /persister-config/
       OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     volumes:
     - ./configs/persister:/persister-config:ro
     ports:
@@ -711,6 +721,12 @@ services:
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_ADMIN_GUI_URL: http://localhost:8002
       KONG_STATUS_LISTEN: 0.0.0.0:8100
+      KONG_MEM_CACHE_SIZE: 64m
+      KONG_NGINX_WORKER_PROCESSES: 1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     ports:
