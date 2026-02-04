@@ -158,6 +158,24 @@ cmd_button(
     text='Test idgen',
 )
 
+# Start Jupyter Lab button
+cmd_button(
+    name='jupyter-start',
+    argv=['sh', '-c', 'docker compose --profile tools up -d jupyter && echo "Jupyter Lab: http://localhost:18888"'],
+    location=location.NAV,
+    icon_name='science',
+    text='Start Jupyter',
+)
+
+# Start Gatus Health Dashboard button
+cmd_button(
+    name='gatus-start',
+    argv=['sh', '-c', 'docker compose --profile tools up -d gatus && echo "Gatus Dashboard: http://localhost:18889"'],
+    location=location.NAV,
+    icon_name='monitor_heart',
+    text='Start Gatus',
+)
+
 # ==================== Port Summary ====================
 # Infrastructure:
 #   - Postgres:      15432

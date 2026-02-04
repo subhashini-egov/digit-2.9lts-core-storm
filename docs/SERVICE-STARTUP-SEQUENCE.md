@@ -320,3 +320,89 @@ Seeds run in dependency order:
 3. `mdms-workflow-seed` - Workflow configuration
 4. `localization-seed` - UI messages
 5. `db-seed` - Final seed after all services ready
+
+## Jupyter Lab for PGR Configuration
+
+### Starting Jupyter
+```bash
+# Via docker compose
+docker compose --profile tools up -d jupyter
+
+# Or via Tilt button
+# Click "Start Jupyter" in Tilt UI
+```
+
+Access Jupyter Lab at: **http://localhost:18888**
+
+### Available Notebooks
+
+| Notebook | Purpose |
+|----------|---------|
+| `LocalSetup.ipynb` | Configure PGR on your local DIGIT setup |
+| `DataLoader_v2.ipynb` | Full CRS DataLoader with all phases |
+
+### What Jupyter Can Do
+
+1. **Load tenant configuration** - Set up tenant branding and logos
+2. **Create boundaries** - Administrative divisions (districts, wards, localities)
+3. **Configure complaint types** - ServiceDefs for PGR
+4. **Create test employees** - Users who can handle complaints
+
+### Template Files
+
+Templates are in `jupyter/dataloader/templates/`:
+- `Tenant And Branding Master.xlsx` - Tenant configuration
+- `Boundary_Master.xlsx` - Administrative boundaries
+- `Common and Complaint Master.xlsx` - Departments, designations, complaint types
+
+### Environment Variables
+
+The Jupyter container has these pre-configured:
+```
+DIGIT_URL=http://kong:8000           # Kong gateway (internal)
+DIGIT_DIRECT_MDMS=http://egov-mdms-service:8094
+DIGIT_DIRECT_USER=http://egov-user:8107
+DIGIT_DIRECT_PGR=http://pgr-services:8080
+DIGIT_TENANT=pg
+```
+
+## Gatus Health Monitoring Dashboard
+
+### Starting Gatus
+```bash
+# Via docker compose
+docker compose --profile tools up -d gatus
+
+# Or via Tilt button
+# Click "Start Gatus" in Tilt UI
+```
+
+Access Gatus Dashboard at: **http://localhost:18889**
+
+### What Gatus Monitors
+
+| Group | Services |
+|-------|----------|
+| Infrastructure | PostgreSQL, Redis, Redpanda, Elasticsearch |
+| Core Services | MDMS, Encryption, IDGen, User, Workflow, Localization, Location, Boundary, Access Control, Persister |
+| API Gateway | Kong Proxy, Admin API, Status |
+| Application | PGR Services, DIGIT UI |
+| API Tests | MDMS Tenant Search, IDGen Generate, Localization Search |
+
+### Features
+- Real-time health status for all services
+- Historical uptime tracking
+- Automatic alerting (configurable)
+- API response time monitoring
+
+### Configuration
+Gatus config is at `gatus/config.yaml`. Add new endpoints:
+```yaml
+endpoints:
+  - name: My New Service
+    group: Custom
+    url: "http://my-service:8080/health"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+```

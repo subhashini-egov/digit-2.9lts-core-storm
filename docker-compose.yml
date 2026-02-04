@@ -733,6 +733,55 @@ services:
     networks:
       - egov-network
 
+  # ==================== Gatus Health Monitoring ====================
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: digit-gatus
+    depends_on:
+      postgres:
+        condition: service_healthy
+      egov-mdms-service:
+        condition: service_healthy
+    volumes:
+      - ./gatus/config.yaml:/config/config.yaml:ro
+    ports:
+      - "18889:8080"
+    environment:
+      GATUS_CONFIG_PATH: /config/config.yaml
+    networks:
+      - egov-network
+    profiles:
+      - tools
+
+  # ==================== Jupyter Lab for PGR Configuration ====================
+  jupyter:
+    build:
+      context: ./jupyter
+      dockerfile: Dockerfile
+    container_name: digit-jupyter
+    depends_on:
+      egov-mdms-service:
+        condition: service_healthy
+      egov-user:
+        condition: service_healthy
+      kong:
+        condition: service_healthy
+    environment:
+      DIGIT_URL: http://kong:8000
+      DIGIT_DIRECT_MDMS: http://egov-mdms-service:8094
+      DIGIT_DIRECT_USER: http://egov-user:8107
+      DIGIT_DIRECT_PGR: http://pgr-services:8080
+      DIGIT_TENANT: pg
+      JUPYTER_ENABLE_LAB: "yes"
+    ports:
+      - "18888:8888"
+    volumes:
+      - ./jupyter/dataloader/templates:/home/jovyan/work/templates
+    networks:
+      - egov-network
+    profiles:
+      - tools
+
 networks:
   egov-network:
     driver: bridge
