@@ -87,9 +87,29 @@ dc_resource('digit-ui', labels=['frontend'],
 dc_resource('db-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True)
+dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True)
 dc_resource('localization-seed', labels=['seeds'], auto_init=True)
 
+# ==================== Local Resources ====================
+
+# Database reset - manually triggered only
+local_resource(
+    'nuke-db',
+    cmd='docker compose down -v && docker compose up -d postgres redis redpanda elasticsearch',
+    auto_init=False,
+    labels=['maintenance'],
+)
+
 # ==================== Custom Buttons ====================
+
+# Nuke Database button - removes all data and restarts infrastructure
+cmd_button(
+    name='nuke-db-btn',
+    argv=['sh', '-c', 'docker compose down -v && docker compose up -d postgres redis redpanda elasticsearch'],
+    location=location.NAV,
+    icon_name='delete_forever',
+    text='Nuke DB',
+)
 
 # Health Check button in the nav bar
 cmd_button(

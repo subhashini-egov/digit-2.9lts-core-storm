@@ -172,6 +172,7 @@ services:
       egov-mdms-service:
         condition: service_healthy
     environment:
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
@@ -186,6 +187,9 @@ services:
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
+      MDMS_SERVICE_HOST: http://egov-mdms-service:8094/
+      MDMS_SERVICE_SEARCH_URI: mdms-v2/v1/_search
+      AUTOCREATE_NEW_SEQ: 'true'
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8088
       OTEL_TRACES_EXPORTER: none
@@ -214,6 +218,8 @@ services:
       egov-enc-service:
         condition: service_healthy
       mdms-tenant-seed:
+        condition: service_completed_successfully
+      mdms-security-seed:
         condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
@@ -479,7 +485,12 @@ services:
       - ./db/tenant-seed.sql:/tenant-seed.sql:ro
     entrypoint: >
       bash -c "
-        echo 'Seeding tenant master for MDMS...';
+        echo 'Waiting for MDMS tables to be created by Flyway...';
+        until psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -c 'SELECT 1 FROM eg_mdms_schema_definition LIMIT 1' >/dev/null 2>&1; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'MDMS tables ready. Seeding tenant master...';
         psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /tenant-seed.sql
         echo 'Tenant seed complete'
       "
@@ -500,9 +511,40 @@ services:
       - ./db/mdms-workflow-seed.sql:/workflow-seed.sql:ro
     entrypoint: >
       bash -c "
+        echo 'Waiting for MDMS tables...';
+        until psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -c 'SELECT 1 FROM eg_mdms_schema_definition LIMIT 1' >/dev/null 2>&1; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
         echo 'Seeding workflow business service config...';
         psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /workflow-seed.sql
         echo 'Workflow MDMS seed complete'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
+  mdms-security-seed:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+      egov-mdms-service:
+        condition: service_healthy
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+    volumes:
+      - ./db/mdms-security-seed.sql:/security-seed.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for MDMS tables...';
+        until psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -c 'SELECT 1 FROM eg_mdms_schema_definition LIMIT 1' >/dev/null 2>&1; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'Seeding Security MDMS configs...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /security-seed.sql
+        echo 'Security MDMS seed complete'
       "
     networks:
       - egov-network
@@ -539,6 +581,8 @@ services:
         condition: service_completed_successfully
       mdms-workflow-seed:
         condition: service_completed_successfully
+      mdms-security-seed:
+        condition: service_completed_successfully
       localization-seed:
         condition: service_completed_successfully
       egov-workflow-v2:
@@ -551,7 +595,12 @@ services:
       - ./db/seed.sql:/seed.sql:ro
     entrypoint: >
       bash -c "
-        echo 'Waiting a bit for services to run Flyway...' ;
+        echo 'Waiting for MDMS tables...';
+        until psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -c 'SELECT 1 FROM eg_mdms_schema_definition LIMIT 1' >/dev/null 2>&1; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'Running seed.sql...';
         psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /seed.sql
         echo 'Done loading seed data'
       "
