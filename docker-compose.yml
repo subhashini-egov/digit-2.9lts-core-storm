@@ -107,6 +107,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: enc_schema_version
       SERVER_PORT: 1234
       OTEL_TRACES_EXPORTER: none
       MASTER_PASSWORD: asd@#$@$!132123
@@ -146,6 +147,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: mdms_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8094
       OTEL_TRACES_EXPORTER: none
@@ -167,6 +169,8 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+      egov-mdms-service:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
@@ -177,6 +181,7 @@ services:
       SPRING_FLYWAY_ENABLED: 'true'
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      SPRING_FLYWAY_TABLE: idgen_schema_version
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration/main
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
@@ -220,6 +225,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: user_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
@@ -264,6 +270,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: workflow_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8109
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
@@ -303,6 +310,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: localization_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
@@ -337,6 +345,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: location_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8084
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
@@ -372,6 +381,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: boundary_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8081
@@ -413,6 +423,7 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_TABLE: accesscontrol_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8090
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
