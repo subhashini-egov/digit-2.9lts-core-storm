@@ -24,6 +24,10 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
+      - name: Clone CCRS repo (for UI configs)
+        run: |
+          git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
+
       - name: Start services
         run: |
           docker compose up -d
@@ -251,6 +255,10 @@ jobs:
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - name: Clone CCRS repo (for UI configs)
+        run: |
+          git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
 
       - name: Validate Tiltfile
         run: |
