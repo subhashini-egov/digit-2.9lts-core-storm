@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -45,9 +45,9 @@ jobs:
 
       - name: Wait for all containers healthy
         run: |
-          echo "Waiting for all containers to be healthy (up to 10 minutes)..."
+          echo "Waiting for all containers to be healthy (up to 15 minutes)..."
           # Wait for all services to report healthy via Docker
-          timeout 600 bash -c '
+          timeout 900 bash -c '
             while true; do
               UNHEALTHY=$(docker compose ps --format json | jq -r "select(.Health != \"healthy\" and .Health != \"\" and .State == \"running\") | .Name" | wc -l)
               TOTAL=$(docker compose ps --format json | jq -r "select(.State == \"running\") | .Name" | wc -l)
@@ -62,18 +62,36 @@ jobs:
 
       - name: Wait for seeds to complete
         run: |
-          echo "Waiting for seed containers to finish..."
-          # Wait for db-seed container to complete (it depends on all other seeds)
-          timeout 300 bash -c 'until docker inspect db-seed-container --format="{{.State.Status}}" 2>/dev/null | grep -q "exited"; do sleep 5; done'
+          echo "Waiting for ALL seed containers to finish (no timeout)..."
 
-          # Check seed exit code
-          EXIT_CODE=$(docker inspect db-seed-container --format="{{.State.ExitCode}}")
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Seed container failed with exit code $EXIT_CODE"
-            docker logs db-seed-container
-            exit 1
-          fi
-          echo "Seeds completed successfully"
+          # List of all seed containers
+          SEEDS="idgen-seed mdms-tenant-seed mdms-workflow-seed localization-seed db-seed"
+
+          # Wait for each seed container to exit
+          for seed in $SEEDS; do
+            echo "Waiting for $seed..."
+            while true; do
+              STATUS=$(docker compose ps --format json | jq -r "select(.Service == \"$seed\") | .State" 2>/dev/null || echo "not_found")
+              if [ "$STATUS" = "exited" ]; then
+                # Check exit code
+                EXIT_CODE=$(docker compose ps --format json | jq -r "select(.Service == \"$seed\") | .ExitCode" 2>/dev/null || echo "0")
+                if [ "$EXIT_CODE" != "0" ]; then
+                  echo "ERROR: $seed failed with exit code $EXIT_CODE"
+                  docker compose logs "$seed"
+                  exit 1
+                fi
+                echo "$seed completed successfully"
+                break
+              elif [ "$STATUS" = "not_found" ]; then
+                echo "Waiting for $seed to start..."
+              else
+                echo "$seed status: $STATUS"
+              fi
+              sleep 5
+            done
+          done
+
+          echo "All seeds completed successfully!"
 
       - name: Run health checks
         run: |
