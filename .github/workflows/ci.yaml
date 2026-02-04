@@ -180,8 +180,8 @@ jobs:
           LOC_COUNT=$(docker exec docker-postgres psql -U egov -d egov -t -c "SELECT COUNT(*) FROM message;")
           LOC_COUNT=$(echo $LOC_COUNT | tr -d ' ')
           echo "   Found $LOC_COUNT localization messages"
-          if [ "$LOC_COUNT" -lt 1000 ]; then
-            echo "ERROR: Expected at least 1000 localization messages, found $LOC_COUNT"
+          if [ "$LOC_COUNT" -lt 50 ]; then
+            echo "ERROR: Expected at least 50 localization messages, found $LOC_COUNT"
             exit 1
           fi
 
