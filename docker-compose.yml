@@ -592,6 +592,7 @@ services:
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_TABLE: pgr_services_schema
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_CONSUMER_GROUP_ID: egov-pgr-services
       SERVER_PORT: 8080
       EGOV_IDGEN_HOST: http://egov-idgen:8088/
