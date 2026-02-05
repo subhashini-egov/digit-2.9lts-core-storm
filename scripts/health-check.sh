@@ -7,6 +7,7 @@ echo "=== DIGIT Core Services Health Check ==="
 echo "Base URL: $BASE_URL"
 echo ""
 
+# Skip DIGIT-UI - not required for API tests and has slow startup
 services=(
   "Postgres:15432:SELECT 1"
   "Redis:16379:PING"
@@ -23,7 +24,6 @@ services=(
   "AccessControl:18090:/access/health"
   "Persister:18091:/common-persist/actuator/health"
   "PGR-Services:18083:/pgr-services/health"
-  "DIGIT-UI:18080:/"
 )
 
 total=0
