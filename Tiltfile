@@ -71,7 +71,7 @@ Or run in CI mode without hot reload:
         'pgr-services-dev',
         context=PGR_PATH + '/target/extracted',
         dockerfile_contents='''
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY . /app
 ENTRYPOINT ["java", "-cp", ".:BOOT-INF/lib/*:BOOT-INF/classes", "org.egov.pgr.PGRApp"]
@@ -134,49 +134,60 @@ dc_resource('gatus', labels=['infrastructure'], auto_init=True,
     ])
 
 # ==================== Core Services ====================
-dc_resource('mdms-backend', labels=['core-services'])
+dc_resource('mdms-backend', labels=['core-services'],
+    resource_deps=['pgbouncer', 'redpanda'],
+)
 
 dc_resource('egov-mdms-service', labels=['core-services'],
+    resource_deps=['mdms-backend'],
     links=[
         link('http://localhost:18094/mdms-v2/health', 'Health'),
     ])
 
 dc_resource('egov-enc-service', labels=['core-services'],
+    resource_deps=['mdms-tenant-seed'],
     links=[
         link('http://localhost:11234/egov-enc-service/actuator/health', 'Health'),
     ])
 
 dc_resource('egov-idgen', labels=['core-services'],
+    resource_deps=['egov-user', 'egov-mdms-service', 'db-migrations'],
     links=[
         link('http://localhost:18088/egov-idgen/health', 'Health'),
     ])
 
 dc_resource('egov-user', labels=['core-services'],
+    resource_deps=['egov-enc-service', 'mdms-security-seed', 'db-migrations'],
     links=[
         link('http://localhost:18107/user/health', 'Health'),
     ])
 
 dc_resource('egov-workflow-v2', labels=['core-services'],
+    resource_deps=['egov-idgen', 'mdms-workflow-seed'],
     links=[
         link('http://localhost:18109/egov-workflow-v2/health', 'Health'),
     ])
 
 dc_resource('egov-localization', labels=['core-services'],
+    resource_deps=['db-migrations'],
     links=[
         link('http://localhost:18096/localization/actuator/health', 'Health'),
     ])
 
 dc_resource('boundary-service', labels=['core-services'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18081/boundary-service/actuator/health', 'Health'),
     ])
 
 dc_resource('egov-accesscontrol', labels=['core-services'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18090/access/health', 'Health'),
     ])
 
 dc_resource('egov-persister', labels=['core-services'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18091/common-persist/actuator/health', 'Health'),
     ])
@@ -191,6 +202,7 @@ dc_resource('kong', labels=['gateway'],
 
 # ==================== PGR Services ====================
 dc_resource('pgr-services', labels=['pgr'],
+    resource_deps=['egov-idgen', 'egov-user', 'egov-workflow-v2', 'egov-localization', 'db-seed'],
     links=[
         link('http://localhost:18083/pgr-services/health', 'Health'),
     ])
@@ -206,14 +218,30 @@ dc_resource('digit-ui', labels=['frontend'],
     ])
 
 # ==================== Seed Jobs ====================
-dc_resource('db-migrations', labels=['seeds'], auto_init=True)
-dc_resource('db-seed', labels=['seeds'], auto_init=True)
-dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True)
-dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True)
-dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True)
-dc_resource('localization-seed', labels=['seeds'], auto_init=True)
-dc_resource('pgr-workflow-seed', labels=['seeds'], auto_init=True)
-dc_resource('user-seed', labels=['seeds'], auto_init=True)
+dc_resource('db-migrations', labels=['seeds'], auto_init=True,
+    resource_deps=['pgbouncer'],
+)
+dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['mdms-backend'],
+)
+dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['mdms-tenant-seed'],
+)
+dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['mdms-tenant-seed'],
+)
+dc_resource('localization-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['egov-localization'],
+)
+dc_resource('db-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['mdms-tenant-seed', 'mdms-workflow-seed', 'mdms-security-seed', 'localization-seed', 'egov-workflow-v2', 'egov-accesscontrol'],
+)
+dc_resource('pgr-workflow-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['egov-workflow-v2', 'mdms-workflow-seed'],
+)
+dc_resource('user-seed', labels=['seeds'], auto_init=True,
+    resource_deps=['egov-user', 'egov-enc-service', 'db-seed'],
+)
 
 # ==================== Local Resources ====================
 
