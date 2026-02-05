@@ -139,6 +139,11 @@ describe('PGR End-to-End Workflow', () => {
               uuid: userUuid,
               type: 'EMPLOYEE',
               tenantId: tenant.city,
+              roles: [
+                { code: 'EMPLOYEE', name: 'Employee', tenantId: tenant.city },
+                { code: 'GRO', name: 'Grievance Routing Officer', tenantId: tenant.city },
+                { code: 'DGRO', name: 'Department GRO', tenantId: tenant.city },
+              ],
             },
           },
           service: {
@@ -148,8 +153,23 @@ describe('PGR End-to-End Workflow', () => {
             source: 'web',
             address: {
               city: tenant.city,
-              // Note: locality is optional, omitting to avoid dependency on boundary data
+              locality: {
+                code: 'LOCALITY1',
+                name: 'Test Locality',
+              },
+              geoLocation: {
+                latitude: 28.7041,
+                longitude: 77.1025,
+              },
             },
+            citizen: {
+              name: 'Test Citizen',
+              mobileNumber: '9888888888',
+              tenantId: tenant.city,
+            },
+          },
+          workflow: {
+            action: 'APPLY',
           },
         }
       );
@@ -196,7 +216,16 @@ describe('PGR End-to-End Workflow', () => {
         {
           RequestInfo: {
             ...createRequestInfo({ authToken: accessToken }),
-            userInfo: { uuid: userUuid, type: 'EMPLOYEE', tenantId: tenant.city },
+            userInfo: {
+              uuid: userUuid,
+              type: 'EMPLOYEE',
+              tenantId: tenant.city,
+              roles: [
+                { code: 'EMPLOYEE', name: 'Employee', tenantId: tenant.city },
+                { code: 'GRO', name: 'Grievance Routing Officer', tenantId: tenant.city },
+                { code: 'DGRO', name: 'Department GRO', tenantId: tenant.city },
+              ],
+            },
           },
         }
       );
@@ -215,7 +244,16 @@ describe('PGR End-to-End Workflow', () => {
         {
           RequestInfo: {
             ...createRequestInfo({ authToken: accessToken }),
-            userInfo: { uuid: userUuid, type: 'EMPLOYEE', tenantId: tenant.city },
+            userInfo: {
+              uuid: userUuid,
+              type: 'EMPLOYEE',
+              tenantId: tenant.city,
+              roles: [
+                { code: 'EMPLOYEE', name: 'Employee', tenantId: tenant.city },
+                { code: 'GRO', name: 'Grievance Routing Officer', tenantId: tenant.city },
+                { code: 'DGRO', name: 'Department GRO', tenantId: tenant.city },
+              ],
+            },
           },
           service: currentService,
           workflow: {
@@ -239,7 +277,16 @@ describe('PGR End-to-End Workflow', () => {
         {
           RequestInfo: {
             ...createRequestInfo({ authToken: accessToken }),
-            userInfo: { uuid: userUuid, type: 'EMPLOYEE', tenantId: tenant.city },
+            userInfo: {
+              uuid: userUuid,
+              type: 'EMPLOYEE',
+              tenantId: tenant.city,
+              roles: [
+                { code: 'EMPLOYEE', name: 'Employee', tenantId: tenant.city },
+                { code: 'GRO', name: 'Grievance Routing Officer', tenantId: tenant.city },
+                { code: 'DGRO', name: 'Department GRO', tenantId: tenant.city },
+              ],
+            },
           },
         }
       );
@@ -247,6 +294,11 @@ describe('PGR End-to-End Workflow', () => {
       expect(response.ok).toBe(true);
 
       const parsed = SearchServiceResponseSchema.safeParse(response.data);
+      if (!parsed.success) {
+        // Log the actual response and parse errors for debugging
+        console.error('Response data:', JSON.stringify(response.data, null, 2).slice(0, 500));
+        console.error('Parse errors:', JSON.stringify(parsed.error.errors, null, 2));
+      }
       expect(parsed.success).toBe(true);
 
       if (parsed.success) {
@@ -262,7 +314,16 @@ describe('PGR End-to-End Workflow', () => {
         {
           RequestInfo: {
             ...createRequestInfo({ authToken: accessToken }),
-            userInfo: { uuid: userUuid, type: 'EMPLOYEE', tenantId: tenant.city },
+            userInfo: {
+              uuid: userUuid,
+              type: 'EMPLOYEE',
+              tenantId: tenant.city,
+              roles: [
+                { code: 'EMPLOYEE', name: 'Employee', tenantId: tenant.city },
+                { code: 'GRO', name: 'Grievance Routing Officer', tenantId: tenant.city },
+                { code: 'DGRO', name: 'Department GRO', tenantId: tenant.city },
+              ],
+            },
           },
         }
       );
@@ -270,6 +331,9 @@ describe('PGR End-to-End Workflow', () => {
       expect(response.ok).toBe(true);
 
       const parsed = SearchServiceResponseSchema.safeParse(response.data);
+      if (!parsed.success) {
+        console.error('Parse errors:', JSON.stringify(parsed.error.errors, null, 2));
+      }
       expect(parsed.success).toBe(true);
 
       if (parsed.success) {

@@ -38,3 +38,23 @@ VALUES
    EXTRACT(EPOCH FROM NOW())::bigint * 1000,
    EXTRACT(EPOCH FROM NOW())::bigint * 1000)
 ON CONFLICT (tenantid, schemacode, uniqueidentifier) DO NOTHING;
+
+-- Add PGR-specific roles that might be missing from main seed
+INSERT INTO eg_mdms_data (id, tenantid, uniqueidentifier, schemacode, data, isactive, createdby, lastmodifiedby, createdtime, lastmodifiedtime)
+VALUES
+  ('role-dgro', 'pg', 'ACCESSCONTROL-ROLES.roles.DGRO', 'ACCESSCONTROL-ROLES.roles',
+   '{"code":"DGRO","description":"Department Grievance Routing Officer","name":"Department GRO"}'::jsonb,
+   TRUE, 'system-mdms-seed', 'system-mdms-seed',
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000,
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000),
+  ('role-pgr-viewer', 'pg', 'ACCESSCONTROL-ROLES.roles.PGR_VIEWER', 'ACCESSCONTROL-ROLES.roles',
+   '{"code":"PGR_VIEWER","description":"PGR Viewer role","name":"PGR Viewer"}'::jsonb,
+   TRUE, 'system-mdms-seed', 'system-mdms-seed',
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000,
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000),
+  ('role-supervisor', 'pg', 'ACCESSCONTROL-ROLES.roles.SUPERVISOR', 'ACCESSCONTROL-ROLES.roles',
+   '{"code":"SUPERVISOR","description":"Auto Escalation Supervisor","name":"Supervisor"}'::jsonb,
+   TRUE, 'system-mdms-seed', 'system-mdms-seed',
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000,
+   EXTRACT(EPOCH FROM NOW())::bigint * 1000)
+ON CONFLICT (tenantid, schemacode, uniqueidentifier) DO NOTHING;

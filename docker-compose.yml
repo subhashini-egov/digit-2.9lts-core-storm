@@ -358,12 +358,15 @@ services:
       SPRING_FLYWAY_ENABLED: 'true'
       SPRING_FLYWAY_TABLE: workflow_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8109
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
       EGOV_USER_HOST: http://egov-user:8107/
       STATE_LEVEL_TENANT_ID: pg.citya
       EGOV_STATE_LEVEL_TENANT_ID: pg
+      # Disable schema-per-tenant mode - use public schema for all tenants
+      IS_ENVIRONMENT_CENTRAL_INSTANCE: 'false'
       OTEL_TRACES_EXPORTER: none
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
     ports:
@@ -550,6 +553,7 @@ services:
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8091
       EGOV_PERSIST_YML_REPO_PATH: /persister-config/
       OTEL_TRACES_EXPORTER: none
@@ -672,31 +676,17 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
-    entrypoint: >
-      sh -c "
-        echo 'Creating PGR workflow business service...';
-        # Check if PGR business service already exists
-        EXISTING=$$(curl -s 'http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_search?tenantId=pg&businessServices=PGR' \
-          -H 'Content-Type: application/json' \
-          -d '{\"RequestInfo\":{\"apiId\":\"digit\",\"ver\":\"1.0\"}}' | grep -c '\"businessService\":\"PGR\"' || echo 0);
-        if [ \"$$EXISTING\" -gt 0 ]; then
-          echo 'PGR workflow already exists, skipping creation';
-        else
-          echo 'Creating PGR workflow...';
-          RESPONSE=$$(curl -s -w '\n%{http_code}' -X POST 'http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create' \
-            -H 'Content-Type: application/json' \
-            -d @/pgr-workflow-config.json);
-          HTTP_CODE=$$(echo \"$$RESPONSE\" | tail -n1);
-          BODY=$$(echo \"$$RESPONSE\" | sed '\$$d');
-          if [ \"$$HTTP_CODE\" = \"200\" ] || [ \"$$HTTP_CODE\" = \"201\" ]; then
-            echo 'PGR workflow created successfully';
-          else
-            echo \"Warning: Workflow creation returned HTTP $$HTTP_CODE\";
-            echo \"$$BODY\" | head -100;
-          fi;
-        fi;
-        echo 'PGR workflow seed complete'
-      "
+    command:
+      - "-s"
+      - "-X"
+      - "POST"
+      - "http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create"
+      - "-H"
+      - "Content-Type: application/json"
+      - "-d"
+      - "@/pgr-workflow-config.json"
+      - "-w"
+      - "\nHTTP_CODE:%{http_code}\n"
     networks:
       - egov-network
     restart: "no"
@@ -832,8 +822,8 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 120s
     networks:
       - egov-network
 
