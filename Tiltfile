@@ -123,11 +123,18 @@ docker_compose('./docker-compose.yml')
 
 # ==================== Infrastructure ====================
 dc_resource('postgres-db', labels=['infrastructure'])
+dc_resource('pgbouncer', labels=['infrastructure'])
 dc_resource('redis', labels=['infrastructure'])
 dc_resource('redpanda', labels=['infrastructure'])
 dc_resource('elasticsearch', labels=['infrastructure'])
+dc_resource('gatus', labels=['infrastructure'], auto_init=True,
+    links=[
+        link('http://localhost:18889', 'Health Dashboard'),
+    ])
 
 # ==================== Core Services ====================
+dc_resource('mdms-backend', labels=['core-services'])
+
 dc_resource('egov-mdms-service', labels=['core-services'],
     links=[
         link('http://localhost:18094/mdms-v2/health', 'Health'),
@@ -187,12 +194,18 @@ dc_resource('pgr-services', labels=['pgr'],
         link('http://localhost:18083/pgr-services/health', 'Health'),
     ])
 
+dc_resource('jupyter', labels=['pgr'], auto_init=True,
+    links=[
+        link('http://localhost:18888/lab', 'Jupyter Lab'),
+    ])
+
 dc_resource('digit-ui', labels=['frontend'],
     links=[
         link('http://localhost:18000/digit-ui/', 'UI via Kong'),
     ])
 
 # ==================== Seed Jobs ====================
+dc_resource('db-migrations', labels=['seeds'], auto_init=True)
 dc_resource('db-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True)
