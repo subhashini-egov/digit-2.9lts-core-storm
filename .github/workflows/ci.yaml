@@ -77,9 +77,14 @@ jobs:
           # Wait for all services to report healthy via Docker
           timeout 900 bash -c '
             while true; do
-              UNHEALTHY=$(docker compose ps --format json | jq -r "select(.Health != \"healthy\" and .Health != \"\" and .State == \"running\") | .Name" | wc -l)
+              UNHEALTHY_NAMES=$(docker compose ps --format json | jq -r "select(.Health != \"healthy\" and .Health != \"\" and .State == \"running\") | .Name")
+              UNHEALTHY=$(echo "$UNHEALTHY_NAMES" | grep -c . || true)
               TOTAL=$(docker compose ps --format json | jq -r "select(.State == \"running\") | .Name" | wc -l)
               echo "Healthy containers: $((TOTAL - UNHEALTHY))/$TOTAL"
+              if [ "$UNHEALTHY" -gt 0 ]; then
+                echo "  Waiting on: $UNHEALTHY_NAMES" | tr "\n" " "
+                echo ""
+              fi
               if [ "$UNHEALTHY" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
                 echo "All containers healthy!"
                 break
