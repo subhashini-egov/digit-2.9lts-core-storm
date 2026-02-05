@@ -33,8 +33,17 @@ run_migration() {
 # Run migrations for each service
 # Each service has its own schema_version table to track migrations independently
 
+# Core services - order matters for dependencies
 if [ -d "/flyway/sql/egov-user" ]; then
     run_migration "egov-user" "egov_user_schema_version" "filesystem:/flyway/sql/egov-user"
+fi
+
+if [ -d "/flyway/sql/egov-idgen" ]; then
+    run_migration "egov-idgen" "egov_idgen_schema_version" "filesystem:/flyway/sql/egov-idgen"
+fi
+
+if [ -d "/flyway/sql/egov-localization" ]; then
+    run_migration "egov-localization" "egov_localization_schema_version" "filesystem:/flyway/sql/egov-localization"
 fi
 
 if [ -d "/flyway/sql/egov-accesscontrol" ]; then
@@ -43,10 +52,6 @@ fi
 
 if [ -d "/flyway/sql/egov-filestore" ]; then
     run_migration "egov-filestore" "egov_filestore_schema_version" "filesystem:/flyway/sql/egov-filestore"
-fi
-
-if [ -d "/flyway/sql/egov-localization" ]; then
-    run_migration "egov-localization" "egov_localization_schema_version" "filesystem:/flyway/sql/egov-localization"
 fi
 
 if [ -d "/flyway/sql/egov-data-uploader" ]; then

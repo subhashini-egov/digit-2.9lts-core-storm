@@ -81,12 +81,12 @@ else
   echo "FAIL: $LOGIN_RESULT"; exit 1
 fi
 
-# IDGen - Generate ID
+# IDGen - Generate ID (using existing sequence)
 echo -n "IDGen generate... "
 IDGEN_RESULT=$(curl -s "$BASE_URL/egov-idgen/id/_generate" -X POST -H "Content-Type: application/json" \
   -d '{
     "RequestInfo":{"apiId":"Rainmaker","ver":".01","action":"_generate","msgId":"test"},
-    "idRequests":[{"idName":"pgr.servicerequestid","tenantId":"'$CITY_TENANT'","format":"PG/PGR/[cy:yyyy-MM-dd]/[SEQ_EG_PGR_SERVICE_REQUEST_ID]"}]
+    "idRequests":[{"idName":"smoke.test.id","tenantId":"'$CITY_TENANT'","format":"SMOKE/[cy:yyyy-MM-dd]/[seq_eg_pgr_id]"}]
   }')
 GENERATED_ID=$(echo "$IDGEN_RESULT" | jq -r '.idResponses[0].id // empty')
 if [ -n "$GENERATED_ID" ]; then

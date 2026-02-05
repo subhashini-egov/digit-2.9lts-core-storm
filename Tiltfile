@@ -7,8 +7,16 @@ load('ext://restart_process', 'docker_build_with_restart')
 
 # ==================== Configuration ====================
 # Path to CCRS code (for live UI and PGR development)
-# Clone CCRS repo as sibling: git clone https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
 CCRS_PATH = os.getenv('CCRS_PATH', '../Citizen-Complaint-Resolution-System')
+CCRS_REPO_URL = 'https://github.com/egovernments/Citizen-Complaint-Resolution-System.git'
+
+# Auto-clone CCRS repo if it doesn't exist
+ccrs_exists = local('test -d "' + CCRS_PATH + '" && echo "exists" || echo "missing"', quiet=True)
+if 'missing' in ccrs_exists:
+    print('CCRS repo not found at ' + CCRS_PATH + ', cloning...')
+    local('git clone --depth 1 ' + CCRS_REPO_URL + ' ' + CCRS_PATH)
+    print('CCRS repo cloned successfully')
+
 FRONTEND_PATH = CCRS_PATH + '/frontend/micro-ui'
 PGR_PATH = CCRS_PATH + '/backend/pgr-services'
 
@@ -40,6 +48,14 @@ Maven not found! For local development with hot reload, install Maven:
 Or run in CI mode without hot reload:
   TILT_CI=1 tilt up
 ''')
+
+    # Initial Maven build if target/extracted doesn't exist yet
+    # This ensures the docker build context exists on first run
+    pgr_target_exists = local('test -d "' + PGR_PATH + '/target/extracted" && echo "exists" || echo "missing"', quiet=True)
+    if 'missing' in pgr_target_exists:
+        print('PGR target not found, running initial Maven build...')
+        local('cd ' + PGR_PATH + ' && mvn package -DskipTests -q && unzip -o target/pgr-services-*.jar -d target/extracted')
+        print('PGR initial build completed')
 
     local_resource(
         'pgr-compile',
@@ -107,7 +123,7 @@ else:
 docker_compose('./docker-compose.yml')
 
 # ==================== Infrastructure ====================
-dc_resource('postgres', labels=['infrastructure'])
+dc_resource('postgres-db', labels=['infrastructure'])
 dc_resource('redis', labels=['infrastructure'])
 dc_resource('redpanda', labels=['infrastructure'])
 dc_resource('elasticsearch', labels=['infrastructure'])
@@ -188,6 +204,7 @@ dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True)
 dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True)
 dc_resource('localization-seed', labels=['seeds'], auto_init=True)
+dc_resource('pgr-workflow-seed', labels=['seeds'], auto_init=True)
 dc_resource('user-schema-seed', labels=['seeds'], auto_init=True)
 
 # ==================== Local Resources ====================
