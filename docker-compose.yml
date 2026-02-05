@@ -66,6 +66,7 @@ services:
     networks:
     - egov-network
 
+  # Redpanda - Kafka-compatible streaming (keeping original for now, debugging separately)
   redpanda:
     image: redpandadata/redpanda:v24.1.1
     container_name: digit-redpanda
@@ -281,7 +282,7 @@ services:
     restart: "no"
 
   egov-user:
-    image: egovio/egov-user:master-fa75ba8
+    image: egovio/egov-user:v2_migration-cc51289
     container_name: egov-user
     depends_on:
       pgbouncer:
@@ -304,9 +305,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by egov-user-db container
+      # Flyway disabled - migrations run by db-migrations container
       FLYWAY_ENABLED: 'false'
-      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # Kafka config - use property name expected by egov-user
+      KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SERVER_PORT: 8107
