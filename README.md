@@ -25,6 +25,10 @@ open http://localhost:18000/digit-ui/
 - [Tilt](https://docs.tilt.dev/install.html) (recommended for development)
 - 8+ GB RAM available for Docker
 
+**For hot reload development (optional):**
+- Maven 3.9+ (for PGR Java hot reload)
+- Node.js 14+ and Yarn (for UI hot reload)
+
 ## What's Included
 
 ### Infrastructure
@@ -95,28 +99,143 @@ docker compose down
 docker compose down -v
 ```
 
-## UI Development
+## Hot Reload Development
 
-The DIGIT UI is built from the CCRS repository. For live development:
+### PGR Services (Java)
 
-### Setup
+Requires Maven installed locally.
+
 ```bash
-# Ensure CCRS repo is cloned as sibling
-ls ../Citizen-Complaint-Resolution-System/frontend/micro-ui
-
-# Or set custom path
-export CCRS_PATH=/path/to/Citizen-Complaint-Resolution-System
+# Start Tilt - it will compile PGR with Maven
 tilt up
+
+# Make changes to Java code
+vim ../Citizen-Complaint-Resolution-System/backend/pgr-services/src/main/java/...
+
+# Tilt detects changes, recompiles, and syncs to container automatically
 ```
 
-### Live Updates
-1. Make changes in `../Citizen-Complaint-Resolution-System/frontend/micro-ui/`
-2. Build locally: `cd ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web && yarn build`
-3. Tilt automatically syncs the `build/` folder to the container
+The `pgr-compile` resource in Tilt runs `mvn package` when source files change.
+
+### DIGIT UI (React)
+
+Requires Node.js and Yarn installed locally.
+
+```bash
+# Start Tilt
+tilt up
+
+# In Tilt UI (http://localhost:10350), enable the "ui-watch" resource
+# Or run webpack watch manually:
+cd ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web
+yarn install
+yarn build:webpack --watch
+
+# Make changes to React code - webpack rebuilds, Tilt syncs to container
+```
+
+### CI Mode (No Hot Reload)
+
+If you don't have Maven/Node installed, run in CI mode:
+
+```bash
+TILT_CI=1 tilt up
+```
+
+This builds images using Docker (slower initial build, no hot reload).
 
 ### Configuration
 - `globalConfigs.js` is mounted from `CCRS/configs/assets/globalConfigsPGR.js`
 - Edit this file to change tenant ID, API keys, feature flags
+
+## End-to-End Testing
+
+### Test Credentials
+
+Users need to be created via API on first run. Use these commands to create a test admin:
+
+```bash
+# Create admin user (run after services are healthy)
+curl -X POST "http://localhost:18107/user/users/_createnovalidate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "RequestInfo": {"apiId": "Rainmaker"},
+    "user": {
+      "userName": "ADMIN",
+      "name": "Admin User",
+      "mobileNumber": "9999999999",
+      "tenantId": "pg",
+      "type": "EMPLOYEE",
+      "roles": [
+        {"code": "SUPERUSER", "tenantId": "pg"},
+        {"code": "EMPLOYEE", "tenantId": "pg"},
+        {"code": "PGR-ADMIN", "tenantId": "pg.citya"},
+        {"code": "GRO", "tenantId": "pg.citya"}
+      ],
+      "password": "eGov@123"
+    }
+  }'
+```
+
+Then login with:
+| Username | Password | Type |
+|----------|----------|------|
+| `ADMIN` | `eGov@123` | EMPLOYEE |
+
+### Quick Verification
+
+```bash
+# 1. Check all services are healthy
+./scripts/health-check.sh
+
+# 2. Run smoke tests
+./scripts/smoke-tests.sh
+
+# 3. Test ID generation
+curl -X POST "http://localhost:18088/egov-idgen/id/_generate" \
+  -H "Content-Type: application/json" \
+  -d '{"RequestInfo":{"apiId":"digit","ver":"1.0"},"idRequests":[{"tenantId":"pg","idName":"pgr.servicerequestid"}]}'
+```
+
+### Manual UI Test Flow
+
+1. Open http://localhost:18000/digit-ui/
+2. Select language → Select city (City A)
+3. Login as Employee: `ADMIN@pg` / `eGov@123`
+4. Navigate to Complaints → Create new complaint
+5. Fill form and submit
+6. Verify complaint appears in inbox
+
+### API Test Flow
+
+```bash
+# 1. Get auth token
+TOKEN=$(curl -s -X POST "http://localhost:18000/user/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "Authorization: Basic ZWdvdi11c2VyLWNsaWVudDo=" \
+  -d "username=ADMIN@pg&password=eGov@123&tenantId=pg&grant_type=password&scope=read&userType=EMPLOYEE" | jq -r '.access_token')
+
+# 2. Create a complaint
+curl -X POST "http://localhost:18000/pgr-services/v2/request/_create" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "RequestInfo": {"apiId": "Rainmaker", "authToken": "'$TOKEN'"},
+    "service": {
+      "tenantId": "pg.citya",
+      "serviceCode": "StreetLightNotWorking",
+      "description": "Test complaint from API",
+      "source": "web",
+      "address": {"city": "pg.citya", "locality": {"code": "SL001"}}
+    }
+  }'
+
+# 3. Search complaints
+curl -X POST "http://localhost:18000/pgr-services/v2/request/_search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"RequestInfo": {"apiId": "Rainmaker", "authToken": "'$TOKEN'"}, "tenantId": "pg.citya"}'
+```
 
 ## API Access
 
@@ -128,11 +247,11 @@ curl -X POST "http://localhost:18000/mdms-v2/v1/_search" \
   -H "Content-Type: application/json" \
   -d '{"MdmsCriteria":{"tenantId":"pg","moduleDetails":[{"moduleName":"tenant","masterDetails":[{"name":"tenants"}]}]},"RequestInfo":{"apiId":"Rainmaker"}}'
 
-# User login
+# User login (after creating user - see Test Credentials section)
 curl -X POST "http://localhost:18000/user/oauth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -H "Authorization: Basic ZWdvdi11c2VyLWNsaWVudDo=" \
-  -d "username=ADMIN@digit.org&password=admin123&tenantId=pg&grant_type=password&scope=read&userType=EMPLOYEE"
+  -d "username=ADMIN&password=eGov@123&tenantId=pg&grant_type=password&scope=read&userType=EMPLOYEE"
 ```
 
 ## Database Access
@@ -189,15 +308,24 @@ Optimized for ~4GB RAM usage:
 digit-core/
 ├── docker-compose.yml    # Service definitions
 ├── Tiltfile              # Tilt configuration
+├── docker/
+│   └── pgr-services/     # PGR Dockerfile for CI builds
 ├── kong/
 │   └── kong.yml          # API gateway routes
 ├── db/
-│   └── seed.sql          # Database seed data
-├── mdms-data/            # Master data configs
-├── scripts/              # Helper scripts
-└── postman/              # API collection
+│   ├── seed.sql          # Database seed data
+│   ├── tenant-seed.sql   # Tenant master data
+│   └── mdms-*.sql        # MDMS seed data
+├── configs/
+│   └── persister/        # Persister YAML configs
+├── scripts/
+│   ├── health-check.sh   # Service health verification
+│   └── smoke-tests.sh    # API smoke tests
+└── gatus/
+    └── config.yaml       # Health dashboard config
 
 ../Citizen-Complaint-Resolution-System/   # CCRS repo (sibling)
 ├── frontend/micro-ui/    # DIGIT UI source
+├── backend/pgr-services/ # PGR Java source
 └── configs/assets/       # Runtime configs
 ```
