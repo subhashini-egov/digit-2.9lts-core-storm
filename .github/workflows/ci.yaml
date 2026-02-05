@@ -46,7 +46,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ../Citizen-Complaint-Resolution-System/backend/pgr-services
-          file: ../Citizen-Complaint-Resolution-System/backend/pgr-services/Dockerfile
+          file: ./docker/pgr-services/Dockerfile
           tags: pgr-services-dev:latest
           load: true
           cache-from: type=gha,scope=pgr-services
@@ -292,7 +292,8 @@ jobs:
           echo "Verifying required files exist..."
           ls -la Tiltfile docker-compose.yml
           ls -la ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile
-          ls -la ../Citizen-Complaint-Resolution-System/backend/pgr-services/Dockerfile
+          ls -la ./docker/pgr-services/Dockerfile
+          ls -la ../Citizen-Complaint-Resolution-System/backend/pgr-services/pom.xml
           echo "All required files present"
 
       - name: Start services with Tilt

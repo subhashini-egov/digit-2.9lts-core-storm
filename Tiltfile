@@ -20,10 +20,11 @@ CI_MODE = os.getenv('CI', '') != '' or os.getenv('TILT_CI', '') != ''
 if CI_MODE:
     # CI Mode: Use multi-stage Dockerfile (Maven inside Docker)
     # This doesn't require Maven installed on host
+    # Dockerfile is in this repo, context is the CCRS backend
     docker_build(
         'pgr-services-dev',
         context=PGR_PATH,
-        dockerfile=PGR_PATH + '/Dockerfile',
+        dockerfile='./docker/pgr-services/Dockerfile',
     )
 else:
     # Local Dev Mode: Compile Java locally, then sync to container for fast hot reload
