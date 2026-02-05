@@ -152,35 +152,13 @@ This builds images using Docker (slower initial build, no hot reload).
 
 ### Test Credentials
 
-Users need to be created via API on first run. Use these commands to create a test admin:
+A default admin user is created by the `user-schema-seed` service:
 
-```bash
-# Create admin user (run after services are healthy)
-curl -X POST "http://localhost:18107/user/users/_createnovalidate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "RequestInfo": {"apiId": "Rainmaker"},
-    "user": {
-      "userName": "ADMIN",
-      "name": "Admin User",
-      "mobileNumber": "9999999999",
-      "tenantId": "pg",
-      "type": "EMPLOYEE",
-      "roles": [
-        {"code": "SUPERUSER", "tenantId": "pg"},
-        {"code": "EMPLOYEE", "tenantId": "pg"},
-        {"code": "PGR-ADMIN", "tenantId": "pg.citya"},
-        {"code": "GRO", "tenantId": "pg.citya"}
-      ],
-      "password": "eGov@123"
-    }
-  }'
-```
+| Username | Password | Type | Tenant |
+|----------|----------|------|--------|
+| `ADMIN` | `eGov@123` | EMPLOYEE | pg |
 
-Then login with:
-| Username | Password | Type |
-|----------|----------|------|
-| `ADMIN` | `eGov@123` | EMPLOYEE |
+**Note:** The admin user has roles: SUPERUSER, EMPLOYEE (pg), PGR-ADMIN, GRO (pg.citya)
 
 ### Quick Verification
 
