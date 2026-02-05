@@ -662,6 +662,45 @@ services:
       - egov-network
     restart: "no"
 
+  # Seed PGR workflow business service via API
+  pgr-workflow-seed:
+    image: curlimages/curl:latest
+    depends_on:
+      egov-workflow-v2:
+        condition: service_healthy
+      mdms-workflow-seed:
+        condition: service_completed_successfully
+    volumes:
+      - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
+    entrypoint: >
+      sh -c "
+        echo 'Creating PGR workflow business service...';
+        # Check if PGR business service already exists
+        EXISTING=$$(curl -s 'http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_search?tenantId=pg&businessServices=PGR' \
+          -H 'Content-Type: application/json' \
+          -d '{\"RequestInfo\":{\"apiId\":\"digit\",\"ver\":\"1.0\"}}' | grep -c '\"businessService\":\"PGR\"' || echo 0);
+        if [ \"$$EXISTING\" -gt 0 ]; then
+          echo 'PGR workflow already exists, skipping creation';
+        else
+          echo 'Creating PGR workflow...';
+          RESPONSE=$$(curl -s -w '\n%{http_code}' -X POST 'http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create' \
+            -H 'Content-Type: application/json' \
+            -d @/pgr-workflow-config.json);
+          HTTP_CODE=$$(echo \"$$RESPONSE\" | tail -n1);
+          BODY=$$(echo \"$$RESPONSE\" | sed '\$$d');
+          if [ \"$$HTTP_CODE\" = \"200\" ] || [ \"$$HTTP_CODE\" = \"201\" ]; then
+            echo 'PGR workflow created successfully';
+          else
+            echo \"Warning: Workflow creation returned HTTP $$HTTP_CODE\";
+            echo \"$$BODY\" | head -100;
+          fi;
+        fi;
+        echo 'PGR workflow seed complete'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
   db-seed:
     image: postgres:16
     container_name: db-seed-container
@@ -677,6 +716,8 @@ services:
       mdms-security-seed:
         condition: service_completed_successfully
       localization-seed:
+        condition: service_completed_successfully
+      pgr-workflow-seed:
         condition: service_completed_successfully
       egov-workflow-v2:
         condition: service_healthy

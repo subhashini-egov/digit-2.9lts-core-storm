@@ -93,7 +93,7 @@ jobs:
           echo "Waiting for seed containers to finish (timeout: 10 minutes)..."
 
           # List of all seed containers
-          SEEDS="mdms-tenant-seed mdms-security-seed mdms-workflow-seed localization-seed db-seed"
+          SEEDS="mdms-tenant-seed mdms-security-seed mdms-workflow-seed localization-seed pgr-workflow-seed db-seed"
 
           # Overall timeout in seconds (10 minutes)
           TIMEOUT=600
@@ -254,7 +254,7 @@ jobs:
           DB_PASSWORD: egov123
         run: |
           cd tests
-          npm test -- --testPathIgnore=pgr-workflow
+          npm test -- --testPathIgnorePatterns="pgr-workflow"
 
       - name: Test idgen service
         run: |
@@ -397,7 +397,7 @@ jobs:
           DB_PASSWORD: egov123
         run: |
           cd tests
-          npm test -- --testPathIgnore=pgr-workflow
+          npm test -- --testPathIgnorePatterns="pgr-workflow"
 
       - name: Show Tilt logs on failure
         if: failure()

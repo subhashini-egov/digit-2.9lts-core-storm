@@ -148,7 +148,7 @@ describe('PGR End-to-End Workflow', () => {
             source: 'web',
             address: {
               city: tenant.city,
-              locality: { code: 'SUN01' },
+              // Note: locality is optional, omitting to avoid dependency on boundary data
             },
           },
         }
