@@ -639,17 +639,34 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
+    entrypoint: ["sh", "-c"]
     command:
-      - "-s"
-      - "-X"
-      - "POST"
-      - "http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create"
-      - "-H"
-      - "Content-Type: application/json"
-      - "-d"
-      - "@/pgr-workflow-config.json"
-      - "-w"
-      - "\nHTTP_CODE:%{http_code}\n"
+      - |
+        echo "Seeding PGR workflow configuration..."
+        MAX_RETRIES=10
+        RETRY_DELAY=5
+        for i in $$(seq 1 $$MAX_RETRIES); do
+          echo "Attempt $$i/$$MAX_RETRIES..."
+          HTTP_CODE=$$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
+            "http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create" \
+            -H "Content-Type: application/json" \
+            -d @/pgr-workflow-config.json)
+          if [ "$$HTTP_CODE" = "200" ] || [ "$$HTTP_CODE" = "201" ]; then
+            echo "SUCCESS: PGR workflow seeded (HTTP $$HTTP_CODE)"
+            exit 0
+          elif [ "$$HTTP_CODE" = "400" ]; then
+            # 400 may mean already exists
+            if grep -q "already exists" /tmp/response.txt 2>/dev/null; then
+              echo "SKIPPED: PGR workflow already exists"
+              exit 0
+            fi
+          fi
+          echo "Failed (HTTP $$HTTP_CODE), retrying in $${RETRY_DELAY}s..."
+          cat /tmp/response.txt 2>/dev/null || true
+          sleep $$RETRY_DELAY
+        done
+        echo "ERROR: Failed to seed PGR workflow after $$MAX_RETRIES attempts"
+        exit 1
     networks:
       - egov-network
     restart: "no"
@@ -669,8 +686,6 @@ services:
       mdms-security-seed:
         condition: service_completed_successfully
       localization-seed:
-        condition: service_completed_successfully
-      pgr-workflow-seed:
         condition: service_completed_successfully
       egov-workflow-v2:
         condition: service_healthy
@@ -704,6 +719,8 @@ services:
         condition: service_healthy
       egov-enc-service:
         condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
     volumes:
       - ./seeds/user-seed.sh:/user-seed.sh:ro
     entrypoint: ["sh", "/user-seed.sh"]
