@@ -26,14 +26,13 @@ CI_MODE = os.getenv('CI', '') != '' or os.getenv('TILT_CI', '') != ''
 
 # ==================== PGR Services ====================
 if CI_MODE:
-    # CI Mode: Use multi-stage Dockerfile (Maven inside Docker)
-    # This doesn't require Maven installed on host
-    # Dockerfile is in this repo, context is the CCRS backend
-    docker_build(
-        'pgr-services-dev',
-        context=PGR_PATH,
-        dockerfile='./docker/pgr-services/Dockerfile',
-    )
+    # CI Mode: Use pre-built images from Docker Hub (much faster)
+    # Images should be pulled and tagged before running Tilt
+    # If not available, fall back to building
+    pgr_image_exists = str(local('docker images -q pgr-services-dev:latest 2>/dev/null || echo "missing"', quiet=True)).strip()
+    if pgr_image_exists == '' or 'missing' in pgr_image_exists:
+        print('pgr-services-dev not found, pulling from Docker Hub...')
+        local('docker pull egovio/pgr-services:crs_dataseeder-084b7cc && docker tag egovio/pgr-services:crs_dataseeder-084b7cc pgr-services-dev:latest')
 else:
     # Local Dev Mode: Compile Java locally, then sync to container for fast hot reload
     # Requires: mvn installed locally
@@ -84,13 +83,11 @@ ENTRYPOINT ["java", "-cp", ".:BOOT-INF/lib/*:BOOT-INF/classes", "org.egov.pgr.Pg
 
 # ==================== DIGIT UI ====================
 if CI_MODE:
-    # CI Mode: Full Docker build
-    docker_build(
-        'digit-ui-dev',
-        context=FRONTEND_PATH,
-        dockerfile=FRONTEND_PATH + '/web/docker/Dockerfile',
-        build_args={'WORK_DIR': '.'},
-    )
+    # CI Mode: Use pre-built images from Docker Hub (much faster)
+    digit_ui_exists = str(local('docker images -q digit-ui-dev:latest 2>/dev/null || echo "missing"', quiet=True)).strip()
+    if digit_ui_exists == '' or 'missing' in digit_ui_exists:
+        print('digit-ui-dev not found, pulling from Docker Hub...')
+        local('docker pull egovio/digit-ui:unified-dev-db498d4 && docker tag egovio/digit-ui:unified-dev-db498d4 digit-ui-dev:latest')
 else:
     # Local Dev Mode: Build with live sync for hot reload
     # Check if yarn is available for UI watching

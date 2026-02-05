@@ -24,33 +24,15 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Clone CCRS repo (for UI and PGR code)
+      - name: Pull pre-built images
         run: |
-          git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
+          # Use pre-built images from Docker Hub instead of building (much faster)
+          docker pull egovio/digit-ui:unified-dev-db498d4
+          docker pull egovio/pgr-services:crs_dataseeder-084b7cc
 
-      - name: Build digit-ui-dev image
-        uses: docker/build-push-action@v5
-        with:
-          context: ../Citizen-Complaint-Resolution-System/frontend/micro-ui
-          file: ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile
-          build-args: WORK_DIR=.
-          tags: digit-ui-dev:latest
-          load: true
-          cache-from: type=gha,scope=digit-ui
-          cache-to: type=gha,mode=max,scope=digit-ui
-
-      - name: Build pgr-services-dev image
-        uses: docker/build-push-action@v5
-        with:
-          context: ../Citizen-Complaint-Resolution-System/backend/pgr-services
-          file: ./docker/pgr-services/Dockerfile
-          tags: pgr-services-dev:latest
-          load: true
-          cache-from: type=gha,scope=pgr-services
-          cache-to: type=gha,mode=max,scope=pgr-services
+          # Tag them as expected by docker-compose
+          docker tag egovio/digit-ui:unified-dev-db498d4 digit-ui-dev:latest
+          docker tag egovio/pgr-services:crs_dataseeder-084b7cc pgr-services-dev:latest
 
       - name: Start services
         run: |
@@ -301,25 +283,17 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
-      - name: Clone CCRS repo (for UI and PGR code)
+      - name: Pull pre-built images
         run: |
-          git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
-
-      - name: Verify files exist
-        run: |
-          echo "Verifying required files exist..."
-          ls -la Tiltfile docker-compose.yml
-          ls -la ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile
-          ls -la ./docker/pgr-services/Dockerfile
-          ls -la ../Citizen-Complaint-Resolution-System/backend/pgr-services/pom.xml
-          echo "All required files present"
+          # Pull and tag images before Tilt starts (Tiltfile will detect them)
+          docker pull egovio/digit-ui:unified-dev-db498d4
+          docker pull egovio/pgr-services:crs_dataseeder-084b7cc
+          docker tag egovio/digit-ui:unified-dev-db498d4 digit-ui-dev:latest
+          docker tag egovio/pgr-services:crs_dataseeder-084b7cc pgr-services-dev:latest
 
       - name: Start services with Tilt
         run: |
