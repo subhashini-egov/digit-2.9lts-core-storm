@@ -290,6 +290,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -415,6 +420,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -454,6 +464,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -501,6 +516,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -540,6 +560,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -575,6 +600,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     networks:
     - egov-network
 
@@ -843,6 +873,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.25'
     networks:
       - egov-network
 
@@ -867,6 +902,11 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
     networks:
       - egov-network
 
@@ -892,7 +932,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
+          cpus: '0.25'
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     ports:
@@ -930,6 +971,11 @@ services:
       - "18889:8080"
     environment:
       GATUS_CONFIG_PATH: /config/config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
     networks:
       - egov-network
 
@@ -957,6 +1003,11 @@ services:
       - "18888:8888"
     volumes:
       - ./jupyter/dataloader/templates:/home/jovyan/work/templates
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     networks:
       - egov-network
 
