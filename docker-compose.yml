@@ -208,6 +208,23 @@ services:
     networks:
     - egov-network
 
+  user-schema-seed:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/user-schema-seed.sql:/user-schema-seed.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Creating user schema...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /user-schema-seed.sql
+        echo 'User schema seed complete'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
   egov-user:
     image: egovio/egov-user:master-fa75ba8
     container_name: egov-user
@@ -223,6 +240,8 @@ services:
       mdms-tenant-seed:
         condition: service_completed_successfully
       mdms-security-seed:
+        condition: service_completed_successfully
+      user-schema-seed:
         condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
