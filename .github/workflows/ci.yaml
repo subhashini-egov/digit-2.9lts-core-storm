@@ -24,16 +24,33 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
-      - name: Clone CCRS repo (for UI configs)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Clone CCRS repo (for UI and PGR code)
         run: |
           git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
 
       - name: Build digit-ui-dev image
-        run: |
-          docker build -t digit-ui-dev \
-            --build-arg WORK_DIR=. \
-            -f ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile \
-            ../Citizen-Complaint-Resolution-System/frontend/micro-ui
+        uses: docker/build-push-action@v5
+        with:
+          context: ../Citizen-Complaint-Resolution-System/frontend/micro-ui
+          file: ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile
+          build-args: WORK_DIR=.
+          tags: digit-ui-dev:latest
+          load: true
+          cache-from: type=gha,scope=digit-ui
+          cache-to: type=gha,mode=max,scope=digit-ui
+
+      - name: Build pgr-services-dev image
+        uses: docker/build-push-action@v5
+        with:
+          context: ../Citizen-Complaint-Resolution-System/backend/pgr-services
+          file: ../Citizen-Complaint-Resolution-System/backend/pgr-services/Dockerfile
+          tags: pgr-services-dev:latest
+          load: true
+          cache-from: type=gha,scope=pgr-services
+          cache-to: type=gha,mode=max,scope=pgr-services
 
       - name: Start services
         run: |
@@ -259,57 +276,61 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           df -h
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
-      - name: Clone CCRS repo (for UI configs)
+      - name: Clone CCRS repo (for UI and PGR code)
         run: |
           git clone --depth 1 https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
 
-      - name: Validate Tiltfile
+      - name: Verify files exist
         run: |
-          echo "Validating Tiltfile syntax..."
-          tilt docker-compose --validate ./docker-compose.yml || true
-          echo "Tiltfile validation complete"
+          echo "Verifying required files exist..."
+          ls -la Tiltfile docker-compose.yml
+          ls -la ../Citizen-Complaint-Resolution-System/frontend/micro-ui/web/docker/Dockerfile
+          ls -la ../Citizen-Complaint-Resolution-System/backend/pgr-services/Dockerfile
+          echo "All required files present"
 
       - name: Start services with Tilt
         run: |
           # Start Tilt in CI mode (non-interactive)
-          tilt ci --timeout 20m &
+          # CI=true is already set by GitHub Actions, Tiltfile will detect and use full Docker builds
+          tilt ci --timeout 30m &
           TILT_PID=$!
 
-          # Wait for Tilt to start
-          sleep 30
+          # Wait for Tilt to start building
+          sleep 60
 
-          # Monitor progress
-          timeout 600 bash -c '
+          # Monitor progress (up to 20 minutes for image builds + service startup)
+          timeout 1200 bash -c "
             while true; do
               # Check if Tilt process is still running
               if ! kill -0 $TILT_PID 2>/dev/null; then
-                echo "Tilt process exited"
+                echo 'Tilt process exited'
                 break
               fi
 
               # Get resource status
-              UNHEALTHY=$(tilt get uiresource -o json 2>/dev/null | jq -r ".items[] | select(.status.runtimeStatus != \"ok\" and .status.runtimeStatus != \"not_applicable\") | .metadata.name" 2>/dev/null | wc -l)
-              TOTAL=$(tilt get uiresource -o json 2>/dev/null | jq -r ".items[].metadata.name" 2>/dev/null | wc -l)
+              UNHEALTHY=\$(tilt get uiresource -o json 2>/dev/null | jq -r '.items[] | select(.status.runtimeStatus != \"ok\" and .status.runtimeStatus != \"not_applicable\") | .metadata.name' 2>/dev/null | wc -l)
+              TOTAL=\$(tilt get uiresource -o json 2>/dev/null | jq -r '.items[].metadata.name' 2>/dev/null | wc -l)
 
-              echo "Tilt resources: $((TOTAL - UNHEALTHY))/$TOTAL healthy"
+              echo \"Tilt resources: \$((TOTAL - UNHEALTHY))/\$TOTAL healthy\"
 
-              if [ "$UNHEALTHY" -eq 0 ] && [ "$TOTAL" -gt 10 ]; then
-                echo "All Tilt resources healthy!"
+              if [ \"\$UNHEALTHY\" -eq 0 ] && [ \"\$TOTAL\" -gt 10 ]; then
+                echo 'All Tilt resources healthy!'
                 break
               fi
               sleep 15
             done
-          ' || true
+          " || true
 
           # Extra wait for services to fully stabilize (especially PGR-Services)
-          echo "Waiting 30s for services to fully stabilize..."
-          sleep 30
-        env:
-          TILT_PID: $TILT_PID
+          echo "Waiting 60s for services to fully stabilize..."
+          sleep 60
 
       - name: Run health checks via Tilt
         run: |

@@ -622,7 +622,7 @@ services:
   # PGR Services (Public Grievance Redressal)
   # ===========================================================================
   pgr-services:
-    image: egovio/pgr-services:v2.9.0-8b3aa24-4
+    image: pgr-services-dev
     container_name: pgr-services
     depends_on:
       postgres:
