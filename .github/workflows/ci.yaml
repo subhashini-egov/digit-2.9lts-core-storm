@@ -355,24 +355,24 @@ jobs:
           " || true
 
           # Extra wait for services to fully stabilize (especially PGR-Services)
-          echo "Waiting 60s for services to fully stabilize..."
-          sleep 60
+          echo "Waiting 120s for services to fully stabilize..."
+          sleep 120
 
       - name: Run health checks via Tilt
         run: |
           echo "Running health checks with retries..."
-          for i in 1 2 3; do
-            echo "Attempt $i..."
+          for i in 1 2 3 4 5 6; do
+            echo "Attempt $i/6..."
             if bash scripts/health-check.sh http://localhost; then
               echo "Health checks passed!"
               exit 0
             fi
-            if [ $i -lt 3 ]; then
-              echo "Some services not ready, waiting 30s before retry..."
-              sleep 30
+            if [ $i -lt 6 ]; then
+              echo "Some services not ready, waiting 60s before retry..."
+              sleep 60
             fi
           done
-          echo "Health checks failed after 3 attempts"
+          echo "Health checks failed after 6 attempts"
           exit 1
 
       - name: Setup Node.js
