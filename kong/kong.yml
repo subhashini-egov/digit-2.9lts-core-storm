@@ -339,4 +339,4 @@ services:
   - name: jupyter-route
     paths:
     - /jupyter
-    strip_path: true
+    strip_path: false
