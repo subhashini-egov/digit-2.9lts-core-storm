@@ -256,11 +256,12 @@ services:
     ports:
     - 18094:8094
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8094/mdms-v2/v1/_search' -H 'Content-Type: application/json' -d '{\"RequestInfo\":{\"apiId\":\"health\"},\"MdmsCriteria\":{\"tenantId\":\"pg\",\"moduleDetails\":[{\"moduleName\":\"tenant\",\"masterDetails\":[{\"name\":\"tenants\"}]}]}}' | grep -q 'pg'"]
+      # Simplified: just verify API responds (don't require tenant data)
+      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8094/mdms-v2/v1/_search' -H 'Content-Type: application/json' -d '{\"RequestInfo\":{\"apiId\":\"health\"},\"MdmsCriteria\":{\"tenantId\":\"pg\",\"moduleDetails\":[{\"moduleName\":\"tenant\",\"masterDetails\":[{\"name\":\"tenants\"}]}]}}'"]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 60s
+      retries: 10
+      start_period: 30s
     networks:
     - egov-network
 
@@ -664,6 +665,41 @@ services:
       - egov-network
 
   # ===========================================================================
+  # HRMS Prerequisites Gate - Verifies system user is queryable before HRMS starts
+  # ===========================================================================
+  hrms-prereq-gate:
+    image: curlimages/curl:latest
+    container_name: hrms-prereq-gate
+    depends_on:
+      egov-user:
+        condition: service_healthy
+      user-seed:
+        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Waiting for hrms-system user to be queryable via egov-user API...'
+        i=1
+        while [ $$i -le 30 ]; do
+          RESPONSE=$$(curl -sf http://egov-user:8107/user/v1/_search \
+            -H "Content-Type: application/json" \
+            -d '{"RequestInfo":{"apiId":"check"},"tenantId":"pg","userName":"hrms-system"}')
+          if echo "$$RESPONSE" | grep -q '"hrms-system"'; then
+            echo "hrms-system user found on attempt $$i! HRMS can start."
+            exit 0
+          fi
+          echo "Attempt $$i: hrms-system user not yet queryable, waiting 3s..."
+          sleep 3
+          i=$$((i + 1))
+        done
+        echo "ERROR: hrms-system user not found after 30 attempts!"
+        exit 1
+    networks:
+      - egov-network
+    restart: "no"
+
+  # ===========================================================================
   # HRMS Service - Employee management
   # ===========================================================================
   egov-hrms:
@@ -680,6 +716,8 @@ services:
         condition: service_healthy
       egov-user:
         condition: service_healthy
+      hrms-prereq-gate:
+        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
@@ -703,7 +741,10 @@ services:
       EGOV_USER_HOST: http://egov-user:8107
       EGOV_FILESTORE_HOST: http://egov-filestore:8083
       EGOV_LOCALIZATION_HOST: http://egov-localization:8096
+      EGOV_BOUNDARY_HOST: http://boundary-service:8081
       STATE_LEVEL_TENANT_ID: pg
+      EGOV_STATELEVEL_TENANT: pg
+      HRMS_SYSTEM_USERNAME: hrms-system
     ports:
       - 18092:8092
     healthcheck:
@@ -757,14 +798,16 @@ services:
     ports:
       - 18086:8080
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null 2>&1 || exit 1"]
+      # Service doesn't have a /health endpoint - use TCP check
+      test: ["CMD-SHELL", "node -e \"require('net').connect(8080, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 180s
+      start_period: 60s
     networks:
       - egov-network
 
+  # RE-ENABLED: Required for services to start (schema definitions)
   mdms-tenant-seed:
     image: postgres:16
     depends_on:
@@ -789,6 +832,7 @@ services:
       - egov-network
     restart: "no"
 
+  # RE-ENABLED: Required for egov-workflow-v2 to start
   mdms-workflow-seed:
     image: postgres:16
     depends_on:
@@ -815,6 +859,7 @@ services:
       - egov-network
     restart: "no"
 
+  # RE-ENABLED: Required for security services
   mdms-security-seed:
     image: postgres:16
     depends_on:
@@ -841,6 +886,7 @@ services:
       - egov-network
     restart: "no"
 
+  # PAUSED: Using default-data-handler instead
   mdms-bndry-mgmnt-seed:
     image: postgres:16
     depends_on:
@@ -850,23 +896,14 @@ services:
         condition: service_healthy
       mdms-tenant-seed:
         condition: service_completed_successfully
-    volumes:
-      - ./db/mdms-bndry-mgmnt-seed.sql:/bndry-mgmnt-seed.sql:ro
-    entrypoint: >
-      bash -c "
-        echo 'Waiting for MDMS tables...';
-        until [ \"$(psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -tAc \"SELECT to_regclass('public.eg_mdms_schema_definition') IS NOT NULL\" 2>/dev/null)\" = \"t\" ]; do
-          echo 'MDMS tables not ready, waiting...';
-          sleep 2;
-        done;
-        echo 'Seeding Boundary Management MDMS configs...';
-        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /bndry-mgmnt-seed.sql
-        echo 'Boundary Management MDMS seed complete'
-      "
+    # volumes:
+    #   - ./db/mdms-bndry-mgmnt-seed.sql:/bndry-mgmnt-seed.sql:ro
+    entrypoint: ["bash", "-c", "echo 'PAUSED: Using default-data-handler for boundary mgmt seeding'"]
     networks:
       - egov-network
     restart: "no"
 
+  # RE-ENABLED: Required for localization
   localization-seed:
     image: postgres:16
     depends_on:
@@ -886,6 +923,7 @@ services:
       - egov-network
     restart: "no"
 
+  # PAUSED: Using default-data-handler instead
   # Seed PGR workflow business service via API
   pgr-workflow-seed:
     image: curlimages/curl:latest
@@ -894,40 +932,14 @@ services:
         condition: service_healthy
       mdms-workflow-seed:
         condition: service_completed_successfully
-    volumes:
-      - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        echo "Seeding PGR workflow configuration..."
-        MAX_RETRIES=10
-        RETRY_DELAY=5
-        for i in $$(seq 1 $$MAX_RETRIES); do
-          echo "Attempt $$i/$$MAX_RETRIES..."
-          HTTP_CODE=$$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
-            "http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create" \
-            -H "Content-Type: application/json" \
-            -d @/pgr-workflow-config.json)
-          if [ "$$HTTP_CODE" = "200" ] || [ "$$HTTP_CODE" = "201" ]; then
-            echo "SUCCESS: PGR workflow seeded (HTTP $$HTTP_CODE)"
-            exit 0
-          elif [ "$$HTTP_CODE" = "400" ]; then
-            # 400 may mean already exists
-            if grep -q "already exists" /tmp/response.txt 2>/dev/null; then
-              echo "SKIPPED: PGR workflow already exists"
-              exit 0
-            fi
-          fi
-          echo "Failed (HTTP $$HTTP_CODE), retrying in $${RETRY_DELAY}s..."
-          cat /tmp/response.txt 2>/dev/null || true
-          sleep $$RETRY_DELAY
-        done
-        echo "ERROR: Failed to seed PGR workflow after $$MAX_RETRIES attempts"
-        exit 1
+    # volumes:
+    #   - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
+    entrypoint: ["sh", "-c", "echo 'PAUSED: Using default-data-handler for PGR workflow seeding'"]
     networks:
       - egov-network
     restart: "no"
 
+  # RE-ENABLED: Creates base database records needed by services
   db-seed:
     image: postgres:16
     container_name: db-seed-container
@@ -967,6 +979,7 @@ services:
       - egov-network
     restart: "no"
 
+  # RE-ENABLED: Required for system users (HRMS needs this)
   # User seed via API (ensures proper password encryption via egov-enc-service)
   user-seed:
     image: curlimages/curl:latest
@@ -1148,6 +1161,7 @@ services:
       context: ./jupyter
       dockerfile: Dockerfile
     container_name: digit-jupyter
+    user: root
     depends_on:
       egov-mdms-service:
         condition: service_healthy
@@ -1167,6 +1181,7 @@ services:
       --ip=0.0.0.0
       --port=8888
       --no-browser
+      --allow-root
       --ServerApp.token=''
       --ServerApp.password=''
       --ServerApp.base_url=/jupyter
@@ -1175,6 +1190,8 @@ services:
       - "18888:8888"
     volumes:
       - ./jupyter/dataloader/templates:/home/jovyan/work/templates
+      - ./jupyter:/home/jovyan/work/dataloader
+      - ./jupyter/DataLoader_v2.ipynb:/home/jovyan/work/DataLoader_v2.ipynb
     networks:
       - egov-network
 

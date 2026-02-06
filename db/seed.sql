@@ -7458,3 +7458,38 @@ WHERE NOT EXISTS (
 );
 
 COMMIT;
+
+-- Boundary Management tables for template generation
+CREATE TABLE IF NOT EXISTS public.eg_bm_generated_template (
+    id VARCHAR(64) PRIMARY KEY,
+    filestoreid VARCHAR(256),
+    status VARCHAR(64),
+    tenantid VARCHAR(256) NOT NULL,
+    hierarchytype VARCHAR(128) NOT NULL,
+    locale VARCHAR(16) DEFAULT 'en_IN',
+    createdby VARCHAR(256),
+    createdtime BIGINT,
+    lastmodifiedby VARCHAR(256),
+    lastmodifiedtime BIGINT,
+    additionaldetails JSONB,
+    referenceid VARCHAR(256)
+);
+
+CREATE TABLE IF NOT EXISTS public.eg_bm_processed_template (
+    id VARCHAR(64) PRIMARY KEY,
+    status VARCHAR(64),
+    tenantid VARCHAR(256) NOT NULL,
+    hierarchytype VARCHAR(128) NOT NULL,
+    filestoreid VARCHAR(256),
+    processedfilestoreid VARCHAR(256),
+    action VARCHAR(64),
+    createdby VARCHAR(256),
+    createdtime BIGINT,
+    lastmodifiedby VARCHAR(256),
+    lastmodifiedtime BIGINT,
+    additionaldetails JSONB,
+    referenceid VARCHAR(256)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bm_gen_template_tenant_hierarchy ON eg_bm_generated_template(tenantid, hierarchytype);
+CREATE INDEX IF NOT EXISTS idx_bm_proc_template_tenant_hierarchy ON eg_bm_processed_template(tenantid, hierarchytype);

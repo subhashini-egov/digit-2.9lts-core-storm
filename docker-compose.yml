@@ -117,6 +117,52 @@ services:
           memory: 300M
           cpus: '0.5'
     networks:
+      egov-network:
+        aliases:
+          - kafka
+          - kafka-v2.kafka-cluster
+
+  # MinIO - S3-compatible object storage for filestore
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: digit-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - 19000:9000
+      - 19001:9001
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    networks:
+      - egov-network
+
+  # MinIO init - creates the bucket
+  minio-init:
+    image: minio/mc:RELEASE.2024-01-16T16-06-34Z
+    container_name: digit-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing myminio/egov-rainmaker;
+      mc anonymous set download myminio/egov-rainmaker;
+      exit 0;
+      "
+    networks:
       - egov-network
 
   elasticsearch:
@@ -245,11 +291,12 @@ services:
     ports:
     - 18094:8094
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8094/mdms-v2/v1/_search' -H 'Content-Type: application/json' -d '{\"RequestInfo\":{\"apiId\":\"health\"},\"MdmsCriteria\":{\"tenantId\":\"pg\",\"moduleDetails\":[{\"moduleName\":\"tenant\",\"masterDetails\":[{\"name\":\"tenants\"}]}]}}' | grep -q 'pg'"]
+      # Simplified: just verify API responds (don't require tenant data)
+      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8094/mdms-v2/v1/_search' -H 'Content-Type: application/json' -d '{\"RequestInfo\":{\"apiId\":\"health\"},\"MdmsCriteria\":{\"tenantId\":\"pg\",\"moduleDetails\":[{\"moduleName\":\"tenant\",\"masterDetails\":[{\"name\":\"tenants\"}]}]}}'"]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 60s
+      retries: 10
+      start_period: 30s
     networks:
     - egov-network
 
@@ -488,6 +535,7 @@ services:
       egov-mdms-service:
         condition: service_healthy
     environment:
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
@@ -511,6 +559,7 @@ services:
       EGOV_LOCALIZATION_HOST: http://egov-localization:8096
       STATE_LEVEL_TENANT_ID: pg
       OTEL_TRACES_EXPORTER: none
+      OTEL_INSTRUMENTATION_JDBC_ENABLED: 'false'
       MANAGEMENT_HEALTH_DB_ENABLED: 'false'
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     ports:
@@ -573,6 +622,29 @@ services:
     networks:
     - egov-network
 
+  # Default Data Handler - seeds schemas and master data for new tenants
+  default-data-handler:
+    image: egovio/default-data-handler:crs_dataseeder-084b7cc
+    container_name: default-data-handler
+    depends_on:
+      mdms-backend:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
+      EGOV_MDMS_HOST: http://mdms-backend:8094/
+      EGOV_LOCALIZATION_HOST: http://egov-localization:8096/
+      EGOV_USER_HOST: http://egov-user:8107/
+      EGOV_HRMS_HOST: http://egov-hrms:8092/
+      EGOV_WORKFLOW_HOST: http://egov-workflow-v2:8109/
+      EGOV_BOUNDARY_HOST: http://boundary-service:8081/
+      STATE_LEVEL_TENANT_ID: pg
+      JAVA_OPTS: -Xms128m -Xmx256m
+    networks:
+      - egov-network
+
   egov-persister:
     image: egovio/egov-persister:v2.9.2-4a60f20
     container_name: egov-persister
@@ -624,6 +696,8 @@ services:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
@@ -639,13 +713,16 @@ services:
       SERVER_PORT: 8083
       OTEL_TRACES_EXPORTER: none
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
-      # Local disk storage (for dev - prod uses S3/Azure)
-      ISFILEENABLED: 'true'
-      FILE_STORAGE_MOUNT_PATH: /filestore
-      ALLOWED_FORMATS: pdf,doc,docx,xls,xlsx,png,jpg,jpeg,gif,txt,csv,xml,json
+      # MinIO/S3 storage (local S3-compatible storage for dev)
+      ISS3ENABLED: 'true'
+      MINIO_URL: http://minio:9000
+      AWS_KEY: minioadmin
+      AWS_SECRETKEY: minioadmin
+      IS_BUCKET_FIXED: 'true'
+      FIXED_BUCKETNAME: egov-rainmaker
+      # From CCRS env.yaml - complete MIME type mapping
+      ALLOWED_FORMATS_MAP: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','multipart/form-data'},zip:{'application/zip','application/octet-stream'},geojson:{'application/json','text/plain','application/geo+json','multipart/form-data'},json:{'application/json','text/plain'}}"
       EGOV_MDMS_HOST: http://egov-mdms-service:8094
-    volumes:
-      - filestore_data:/filestore
     ports:
       - 18084:8083
     healthcheck:
@@ -661,6 +738,41 @@ services:
           cpus: '0.25'
     networks:
       - egov-network
+
+  # ===========================================================================
+  # HRMS Prerequisites Gate - Verifies system user is queryable before HRMS starts
+  # ===========================================================================
+  hrms-prereq-gate:
+    image: curlimages/curl:latest
+    container_name: hrms-prereq-gate
+    depends_on:
+      egov-user:
+        condition: service_healthy
+      user-seed:
+        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Waiting for hrms-system user to be queryable via egov-user API...'
+        i=1
+        while [ $$i -le 30 ]; do
+          RESPONSE=$$(curl -sf http://egov-user:8107/user/v1/_search \
+            -H "Content-Type: application/json" \
+            -d '{"RequestInfo":{"apiId":"check"},"tenantId":"pg","userName":"hrms-system"}')
+          if echo "$$RESPONSE" | grep -q '"hrms-system"'; then
+            echo "hrms-system user found on attempt $$i! HRMS can start."
+            exit 0
+          fi
+          echo "Attempt $$i: hrms-system user not yet queryable, waiting 3s..."
+          sleep 3
+          i=$$((i + 1))
+        done
+        echo "ERROR: hrms-system user not found after 30 attempts!"
+        exit 1
+    networks:
+      - egov-network
+    restart: "no"
 
   # ===========================================================================
   # HRMS Service - Employee management
@@ -679,6 +791,8 @@ services:
         condition: service_healthy
       egov-user:
         condition: service_healthy
+      hrms-prereq-gate:
+        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
@@ -702,7 +816,10 @@ services:
       EGOV_USER_HOST: http://egov-user:8107
       EGOV_FILESTORE_HOST: http://egov-filestore:8083
       EGOV_LOCALIZATION_HOST: http://egov-localization:8096
+      EGOV_BOUNDARY_HOST: http://boundary-service:8081
       STATE_LEVEL_TENANT_ID: pg
+      EGOV_STATELEVEL_TENANT: pg
+      HRMS_SYSTEM_USERNAME: hrms-system
     ports:
       - 18092:8092
     healthcheck:
@@ -745,23 +862,28 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       # Try multiple Kafka env var names
       KAFKA_BROKERS: redpanda:9092
+      KAFKA_BROKER_HOST: redpanda:9092
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       BOOTSTRAP_SERVERS: redpanda:9092
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      EGOV_MDMS_HOST: http://egov-mdms-service:8094
-      EGOV_BOUNDARY_HOST: http://boundary-service:8081
-      EGOV_FILESTORE_HOST: http://egov-filestore:8083
+      EGOV_MDMS_HOST: http://egov-mdms-service:8094/
+      EGOV_MDMS_V2_HOST: http://egov-mdms-service:8094/
+      EGOV_BOUNDARY_HOST: http://boundary-service:8081/
+      EGOV_FILESTORE_HOST: http://egov-filestore:8083/
+      EGOV_FILESTORE_SERVICE_HOST: http://egov-filestore:8083/
+      EGOV_LOCALIZATION_HOST: http://egov-localization:8096/
       STATE_LEVEL_TENANT_ID: pg
       KAFKAJS_NO_PARTITIONER_WARNING: 1
     ports:
       - 18086:8080
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null 2>&1 || exit 1"]
+      # Service doesn't have a /health endpoint - use TCP check
+      test: ["CMD-SHELL", "node -e \"require('net').connect(8080, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 180s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -846,6 +968,21 @@ services:
       - egov-network
     restart: "no"
 
+  # PAUSED: Using default-data-handler instead
+  mdms-bndry-mgmnt-seed:
+    image: postgres:16
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+    entrypoint: ["bash", "-c", "echo 'PAUSED: Using default-data-handler for boundary mgmt seeding'"]
+    networks:
+      - egov-network
+    restart: "no"
+
   localization-seed:
     image: postgres:16
     depends_on:
@@ -865,7 +1002,7 @@ services:
       - egov-network
     restart: "no"
 
-  # Seed PGR workflow business service via API
+  # PAUSED: Using default-data-handler instead
   pgr-workflow-seed:
     image: curlimages/curl:latest
     depends_on:
@@ -873,36 +1010,7 @@ services:
         condition: service_healthy
       mdms-workflow-seed:
         condition: service_completed_successfully
-    volumes:
-      - ./db/pgr-workflow-config.json:/pgr-workflow-config.json:ro
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        echo "Seeding PGR workflow configuration..."
-        MAX_RETRIES=10
-        RETRY_DELAY=5
-        for i in $$(seq 1 $$MAX_RETRIES); do
-          echo "Attempt $$i/$$MAX_RETRIES..."
-          HTTP_CODE=$$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST \
-            "http://egov-workflow-v2:8109/egov-workflow-v2/egov-wf/businessservice/_create" \
-            -H "Content-Type: application/json" \
-            -d @/pgr-workflow-config.json)
-          if [ "$$HTTP_CODE" = "200" ] || [ "$$HTTP_CODE" = "201" ]; then
-            echo "SUCCESS: PGR workflow seeded (HTTP $$HTTP_CODE)"
-            exit 0
-          elif [ "$$HTTP_CODE" = "400" ]; then
-            # 400 may mean already exists
-            if grep -q "already exists" /tmp/response.txt 2>/dev/null; then
-              echo "SKIPPED: PGR workflow already exists"
-              exit 0
-            fi
-          fi
-          echo "Failed (HTTP $$HTTP_CODE), retrying in $${RETRY_DELAY}s..."
-          cat /tmp/response.txt 2>/dev/null || true
-          sleep $$RETRY_DELAY
-        done
-        echo "ERROR: Failed to seed PGR workflow after $$MAX_RETRIES attempts"
-        exit 1
+    entrypoint: ["sh", "-c", "echo 'PAUSED: Using default-data-handler for PGR workflow seeding'"]
     networks:
       - egov-network
     restart: "no"
@@ -1147,6 +1255,7 @@ services:
       context: ./jupyter
       dockerfile: Dockerfile
     container_name: digit-jupyter
+    user: root
     depends_on:
       egov-mdms-service:
         condition: service_healthy
@@ -1166,6 +1275,7 @@ services:
       --ip=0.0.0.0
       --port=8888
       --no-browser
+      --allow-root
       --ServerApp.token=''
       --ServerApp.password=''
       --ServerApp.base_url=/jupyter
@@ -1174,6 +1284,8 @@ services:
       - "18888:8888"
     volumes:
       - ./jupyter/dataloader/templates:/home/jovyan/work/templates
+      - ./jupyter:/home/jovyan/work/dataloader
+      - ./jupyter/DataLoader_v2.ipynb:/home/jovyan/work/DataLoader_v2.ipynb
     deploy:
       resources:
         limits:
@@ -1190,3 +1302,4 @@ volumes:
   postgres_data: null
   es_data: null
   filestore_data: null
+  minio_data: null

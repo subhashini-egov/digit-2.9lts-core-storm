@@ -79,6 +79,35 @@ GRO_ROLES='[
 ]'
 create_user "GRO" "Grievance Officer" "9888888888" "gro@digit.org" "$GRO_ROLES"
 
+# Create HRMS system user (required by egov-hrms for internal operations)
+echo ""
+echo "Creating SYSTEM user: hrms-system"
+HRMS_RESPONSE=$(curl -s -X POST "$EGOV_USER_HOST/user/users/_createnovalidate" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "RequestInfo": {"apiId": "digit", "ver": "1.0"},
+    "User": {
+      "userName": "hrms-system",
+      "name": "HRMS System User",
+      "mobileNumber": "9000000001",
+      "gender": "MALE",
+      "active": true,
+      "type": "SYSTEM",
+      "tenantId": "pg",
+      "password": "System@123",
+      "roles": [{"code": "EMPLOYEE", "name": "Employee", "tenantId": "pg"}]
+    }
+  }')
+
+if echo "$HRMS_RESPONSE" | grep -q '"userName"'; then
+  echo "  SUCCESS: HRMS system user created"
+elif echo "$HRMS_RESPONSE" | grep -q 'DuplicateUserName'; then
+  echo "  SKIPPED: HRMS system user already exists"
+else
+  echo "  ERROR: Failed to create HRMS system user"
+  echo "  Response: $HRMS_RESPONSE"
+fi
+
 echo ""
 echo "=== User seed completed ==="
 echo "Default credentials: username/password"
