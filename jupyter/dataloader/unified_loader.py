@@ -661,8 +661,8 @@ class APIUploader:
             self.base_url = self.base_url[:-1]
 
         # Service endpoints from .env (configurable)
-        # MDMS path varies by environment: /mdms-v2 (chakshu) or /egov-mdms-service (unified-dev)
-        mdms_v2_service = os.getenv("MDMS_V2_SERVICE", None)  # Auto-detect if not set
+        # MDMS path - default to /mdms-v2
+        mdms_v2_service = os.getenv("MDMS_V2_SERVICE", "/mdms-v2")
         boundary_service = os.getenv("BOUNDARY_SERVICE", "/boundary-service")
         boundary_mgmt_service = os.getenv("BOUNDARY_MGMT_SERVICE", "/egov-bndry-mgmnt")
         localization_service = os.getenv("LOCALIZATION_SERVICE", "/localization")
@@ -2027,7 +2027,7 @@ class APIUploader:
         Returns:
             Dict with generation task details
         """
-        url = f"{self.boundary_mgmt_url}/v1/_generate"
+        url = f"{self.boundary_mgmt_url}/boundary-management/v1/_generate"
 
         params = {
             "tenantId": tenant_id,
@@ -2084,7 +2084,7 @@ class APIUploader:
         Returns:
             Dict with fileStoreId when complete
         """
-        url = f"{self.boundary_mgmt_url}/v1/_generate-search"
+        url = f"{self.boundary_mgmt_url}/boundary-management/v1/_generate-search"
 
         params = {
             "tenantId": tenant_id,

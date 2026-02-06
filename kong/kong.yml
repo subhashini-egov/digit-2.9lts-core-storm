@@ -50,11 +50,6 @@ services:
     paths:
     - /mdms-v2
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: user-service
   url: http://egov-user:8107
   tags:
@@ -65,11 +60,6 @@ services:
     paths:
     - /user
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 60
-      policy: local
 - name: user-auth-public
   url: http://egov-user:8107
   tags:
@@ -83,11 +73,6 @@ services:
     strip_path: false
     methods:
     - POST
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 10
-      policy: local
 - name: enc-service
   url: http://egov-enc-service:1234
   tags:
@@ -98,11 +83,6 @@ services:
     paths:
     - /egov-enc-service
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: idgen-service
   url: http://egov-idgen:8088
   tags:
@@ -112,11 +92,6 @@ services:
     paths:
     - /egov-idgen
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 200
-      policy: local
 - name: workflow-service
   url: http://egov-workflow-v2:8109
   tags:
@@ -126,11 +101,6 @@ services:
     paths:
     - /egov-workflow-v2
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: localization-service
   url: http://egov-localization:8096
   tags:
@@ -140,11 +110,6 @@ services:
     paths:
     - /localization
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: location-service
   url: http://egov-location:8084
   tags:
@@ -154,11 +119,6 @@ services:
     paths:
     - /egov-location
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: boundary-service
   url: http://boundary-service:8081
   tags:
@@ -168,11 +128,6 @@ services:
     paths:
     - /boundary-service
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: accesscontrol-service
   url: http://egov-accesscontrol:8090
   tags:
@@ -183,11 +138,6 @@ services:
     paths:
     - /access
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: persister-service
   url: http://egov-persister:8091
   tags:
@@ -198,11 +148,6 @@ services:
     paths:
     - /common-persist
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 50
-      policy: local
 - name: health-mdms
   url: http://egov-mdms-service:8094
   routes:
@@ -261,11 +206,6 @@ services:
     paths:
     - /pgr-services
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: health-pgr
   url: http://pgr-services:8080
   routes:
@@ -287,11 +227,6 @@ services:
     paths:
     - /filestore
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: hrms-service
   url: http://egov-hrms:8092
   tags:
@@ -301,25 +236,15 @@ services:
     paths:
     - /egov-hrms
     strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
 - name: bndry-mgmnt-service
-  url: http://egov-bndry-mgmnt:8086
+  url: http://egov-bndry-mgmnt:8080
   tags:
   - core
   routes:
   - name: bndry-mgmnt-route
     paths:
     - /egov-bndry-mgmnt
-    strip_path: false
-  plugins:
-  - name: rate-limiting
-    config:
-      minute: 100
-      policy: local
+    strip_path: true
 - name: digit-ui
   url: http://digit-ui:80
   tags:
