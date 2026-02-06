@@ -79,33 +79,34 @@ GRO_ROLES='[
 ]'
 create_user "GRO" "Grievance Officer" "9888888888" "gro@digit.org" "$GRO_ROLES"
 
-# Create HRMS system user (required by egov-hrms for internal operations)
+# Create Internal Microservice user (required by egov-hrms for internal operations)
+# HRMS searches for this user by roleCodes=INTERNAL_MICROSERVICE_ROLE on startup
 echo ""
-echo "Creating SYSTEM user: hrms-system"
-HRMS_RESPONSE=$(curl -s -X POST "$EGOV_USER_HOST/user/users/_createnovalidate" \
+echo "Creating SYSTEM user: INTERNAL_USER (for HRMS internal microservice)"
+INTERNAL_USER_RESPONSE=$(curl -s -X POST "$EGOV_USER_HOST/user/users/_createnovalidate" \
   -H 'Content-Type: application/json' \
   -d '{
     "RequestInfo": {"apiId": "digit", "ver": "1.0"},
     "User": {
-      "userName": "hrms-system",
-      "name": "HRMS System User",
-      "mobileNumber": "9000000001",
+      "userName": "INTERNAL_USER",
+      "name": "Internal Microservice User",
+      "mobileNumber": "9999999999",
       "gender": "MALE",
       "active": true,
       "type": "SYSTEM",
       "tenantId": "pg",
       "password": "System@123",
-      "roles": [{"code": "EMPLOYEE", "name": "Employee", "tenantId": "pg"}]
+      "roles": [{"code": "INTERNAL_MICROSERVICE_ROLE", "name": "Internal Microservice Role", "tenantId": "pg"}]
     }
   }')
 
-if echo "$HRMS_RESPONSE" | grep -q '"userName"'; then
-  echo "  SUCCESS: HRMS system user created"
-elif echo "$HRMS_RESPONSE" | grep -q 'DuplicateUserName'; then
-  echo "  SKIPPED: HRMS system user already exists"
+if echo "$INTERNAL_USER_RESPONSE" | grep -q '"userName"'; then
+  echo "  SUCCESS: Internal Microservice user created"
+elif echo "$INTERNAL_USER_RESPONSE" | grep -q 'DuplicateUserName'; then
+  echo "  SKIPPED: Internal Microservice user already exists"
 else
-  echo "  ERROR: Failed to create HRMS system user"
-  echo "  Response: $HRMS_RESPONSE"
+  echo "  ERROR: Failed to create Internal Microservice user"
+  echo "  Response: $INTERNAL_USER_RESPONSE"
 fi
 
 echo ""

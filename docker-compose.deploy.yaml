@@ -679,21 +679,22 @@ services:
       - sh
       - -c
       - |
-        echo 'Waiting for hrms-system user to be queryable via egov-user API...'
+        echo 'Waiting for INTERNAL_MICROSERVICE_ROLE user to be queryable via egov-user API...'
+        echo 'HRMS searches for users by roleCodes=INTERNAL_MICROSERVICE_ROLE on startup'
         i=1
         while [ $$i -le 30 ]; do
           RESPONSE=$$(curl -sf http://egov-user:8107/user/v1/_search \
             -H "Content-Type: application/json" \
-            -d '{"RequestInfo":{"apiId":"check"},"tenantId":"pg","userName":"hrms-system"}')
-          if echo "$$RESPONSE" | grep -q '"hrms-system"'; then
-            echo "hrms-system user found on attempt $$i! HRMS can start."
+            -d '{"RequestInfo":{"apiId":"check"},"tenantId":"pg","roleCodes":["INTERNAL_MICROSERVICE_ROLE"]}')
+          if echo "$$RESPONSE" | grep -q '"INTERNAL_MICROSERVICE_ROLE"'; then
+            echo "INTERNAL_MICROSERVICE_ROLE user found on attempt $$i! HRMS can start."
             exit 0
           fi
-          echo "Attempt $$i: hrms-system user not yet queryable, waiting 3s..."
+          echo "Attempt $$i: INTERNAL_MICROSERVICE_ROLE user not yet queryable, waiting 3s..."
           sleep 3
           i=$$((i + 1))
         done
-        echo "ERROR: hrms-system user not found after 30 attempts!"
+        echo "ERROR: INTERNAL_MICROSERVICE_ROLE user not found after 30 attempts!"
         exit 1
     networks:
       - egov-network
@@ -744,7 +745,7 @@ services:
       EGOV_BOUNDARY_HOST: http://boundary-service:8081
       STATE_LEVEL_TENANT_ID: pg
       EGOV_STATELEVEL_TENANT: pg
-      HRMS_SYSTEM_USERNAME: hrms-system
+      HRMS_SYSTEM_USERNAME: INTERNAL_USER
     ports:
       - 18092:8092
     healthcheck:
