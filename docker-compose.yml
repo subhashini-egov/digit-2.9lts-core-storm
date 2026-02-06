@@ -262,8 +262,6 @@ services:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
-      egov-user:
-        condition: service_healthy
       db-migrations:
         condition: service_completed_successfully
     environment:
