@@ -208,7 +208,6 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: enc_schema_version
       SERVER_PORT: 1234
       OTEL_TRACES_EXPORTER: none
       MASTER_PASSWORD: asd@#$@$!132123
@@ -257,7 +256,6 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: mdms_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8094
@@ -310,8 +308,6 @@ services:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
-      db-migrations:
-        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
@@ -319,8 +315,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      SPRING_FLYWAY_ENABLED: 'false'
+      SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
@@ -348,23 +348,6 @@ services:
     networks:
     - egov-network
 
-  # Unified database migrations for all DIGIT services
-  # Runs all Flyway migrations in one container before services start
-  db-migrations:
-    build:
-      context: ./docker/db-migrations
-      dockerfile: Dockerfile
-    depends_on:
-      pgbouncer:
-        condition: service_healthy
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/egov
-      FLYWAY_USER: egov
-      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
-    networks:
-      - egov-network
-    restart: "no"
-
   egov-user:
     image: egovio/egov-user:master-fa75ba8
     container_name: egov-user
@@ -377,11 +360,11 @@ services:
         condition: service_healthy
       egov-enc-service:
         condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
       mdms-tenant-seed:
         condition: service_completed_successfully
       mdms-security-seed:
-        condition: service_completed_successfully
-      db-migrations:
         condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
@@ -389,8 +372,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      FLYWAY_ENABLED: 'false'
+      # Flyway enabled - run egov-user migrations on startup (Spring Boot 1.x uses flyway.*)
+      FLYWAY_ENABLED: 'true'
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      FLYWAY_USER: egov
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      FLYWAY_TABLE: egov_user_schema_version
+      FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      LOGGING_LEVEL_ORG_FLYWAYDB: DEBUG
       # Kafka config - use property name expected by egov-user
       KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -451,7 +441,6 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: workflow_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8109
@@ -468,50 +457,6 @@ services:
     - 18109:8109
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8109/egov-workflow-v2/health >/dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 320M
-          cpus: '0.25'
-    networks:
-    - egov-network
-
-  egov-localization:
-    image: egovio/egov-localization:v2.9.2-4a60f20
-    container_name: egov-localization
-    depends_on:
-      pgbouncer:
-        condition: service_healthy
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      egov-mdms-service:
-        condition: service_healthy
-      db-migrations:
-        condition: service_completed_successfully
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
-      SPRING_DATASOURCE_USERNAME: egov
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
-      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
-      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      SPRING_FLYWAY_ENABLED: 'false'
-      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SERVER_PORT: 8096
-      OTEL_TRACES_EXPORTER: none
-      JAVA_TOOL_OPTIONS: -Xms64m -Xmx256m
-    ports:
-    - 18096:8096
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8096/localization/actuator/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -547,7 +492,6 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: boundary_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8081
@@ -600,7 +544,6 @@ services:
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: accesscontrol_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8090
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
@@ -621,29 +564,6 @@ services:
           cpus: '0.25'
     networks:
     - egov-network
-
-  # Default Data Handler - seeds schemas and master data for new tenants
-  default-data-handler:
-    image: egovio/default-data-handler:crs_dataseeder-084b7cc
-    container_name: default-data-handler
-    depends_on:
-      mdms-backend:
-        condition: service_healthy
-      redpanda:
-        condition: service_healthy
-    environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
-      EGOV_MDMS_HOST: http://mdms-backend:8094/
-      EGOV_LOCALIZATION_HOST: http://egov-localization:8096/
-      EGOV_USER_HOST: http://egov-user:8107/
-      EGOV_HRMS_HOST: http://egov-hrms:8092/
-      EGOV_WORKFLOW_HOST: http://egov-workflow-v2:8109/
-      EGOV_BOUNDARY_HOST: http://boundary-service:8081/
-      STATE_LEVEL_TENANT_ID: pg
-      JAVA_OPTS: -Xms128m -Xmx256m
-    networks:
-      - egov-network
 
   egov-persister:
     image: egovio/egov-persister:v2.9.2-4a60f20
@@ -709,7 +629,6 @@ services:
       SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: filestore_schema_version
       SERVER_PORT: 8083
       OTEL_TRACES_EXPORTER: none
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
@@ -805,7 +724,6 @@ services:
       SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_ENABLED: 'true'
-      SPRING_FLYWAY_TABLE: hrms_schema_version
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_CONSUMER_GROUP_ID: employee-group1
@@ -984,25 +902,6 @@ services:
       - egov-network
     restart: "no"
 
-  localization-seed:
-    image: postgres:16
-    depends_on:
-      pgbouncer:
-        condition: service_healthy
-      egov-localization:
-        condition: service_healthy
-    volumes:
-      - ./db/localization-seed.sql:/localization-seed.sql:ro
-    entrypoint: >
-      bash -c "
-        echo 'Seeding localization data...';
-        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /localization-seed.sql
-        echo 'Localization seed complete'
-      "
-    networks:
-      - egov-network
-    restart: "no"
-
   # PAUSED: Using default-data-handler instead
   pgr-workflow-seed:
     image: curlimages/curl:latest
@@ -1030,11 +929,7 @@ services:
         condition: service_completed_successfully
       mdms-security-seed:
         condition: service_completed_successfully
-      localization-seed:
-        condition: service_completed_successfully
       egov-workflow-v2:
-        condition: service_healthy
-      egov-localization:
         condition: service_healthy
       egov-accesscontrol:
         condition: service_healthy
@@ -1094,8 +989,6 @@ services:
         condition: service_healthy
       egov-workflow-v2:
         condition: service_healthy
-      egov-localization:
-        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
@@ -1108,7 +1001,6 @@ services:
       SPRING_FLYWAY_ENABLED: 'true'
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
       SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
-      SPRING_FLYWAY_TABLE: pgr_services_schema
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_KAFKA_CONSUMER_GROUP_ID: egov-pgr-services
@@ -1290,8 +1182,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: '0.25'
+          memory: 512M
+          cpus: '1'
     networks:
       - egov-network
 

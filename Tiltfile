@@ -121,7 +121,7 @@ else:
 # Load docker-compose configuration
 # Note: wait=True blocks until ALL containers are healthy, which is too slow
 # Instead, rely on docker-compose depends_on with service_healthy conditions
-docker_compose('./docker-compose.yml')
+docker_compose('./docker-compose.deploy.yaml')
 
 # ==================== Infrastructure ====================
 dc_resource('postgres-db', labels=['infrastructure'])
@@ -159,7 +159,7 @@ dc_resource('egov-idgen', labels=['core-services'],
     ])
 
 dc_resource('egov-user', labels=['core-services'],
-    resource_deps=['egov-enc-service', 'mdms-security-seed', 'db-migrations'],
+    resource_deps=['egov-enc-service', 'mdms-security-seed'],
     links=[
         link('http://localhost:18107/user/health', 'Health'),
     ])
