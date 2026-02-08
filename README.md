@@ -177,7 +177,7 @@ tilt version
 | User | 18107 | `/user/health` |
 | Workflow v2 | 18109 | `/egov-workflow-v2/health` |
 | Localization | 18096 | `/localization/actuator/health` |
-| Location | 18084 | `/egov-location/health` |
+| Location (boundary-service) | 18081 | `/boundary-service/actuator/health` |
 | Boundary v2 | 18081 | `/boundary-service/actuator/health` |
 | Access Control | 18090 | `/access/health` |
 | IDGEN | 18088 | `/egov-idgen/health` |
