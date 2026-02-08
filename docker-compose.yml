@@ -350,6 +350,7 @@ services:
     networks:
     - egov-network
 
+
   egov-user:
     image: egovio/egov-user:master-fa75ba8
     container_name: egov-user
@@ -591,6 +592,7 @@ services:
           cpus: '0.25'
     networks:
     - egov-network
+
 
   egov-persister:
     image: egovio/egov-persister:v2.9.2-4a60f20
@@ -1096,8 +1098,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.1'
+          memory: 250M
+          cpus: '1'
     networks:
       - egov-network
 
@@ -1207,6 +1209,94 @@ services:
       - ./jupyter/dataloader/templates:/home/jovyan/work/templates
       - ./jupyter:/home/jovyan/work/dataloader
       - ./jupyter/DataLoader_v2.ipynb:/home/jovyan/work/DataLoader_v2.ipynb
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
+    networks:
+      - egov-network
+
+  egov-localization:
+    image: egovio/egov-localization:v2.9.2-4a60f20
+    container_name: egov-localization
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      egov-mdms-service:
+        condition: service_healthy
+      egov-user:
+        condition: service_healthy
+      egov-workflow-v2:
+        condition: service_healthy
+      boundary-service:
+        condition: service_healthy
+      egov-filestore:
+        condition: service_healthy
+      egov-idgen:
+        condition: service_healthy
+      egov-accesscontrol:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_USERNAME: egov
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SERVER_PORT: 8096
+      OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m
+    ports:
+      - 18096:8096
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8096/localization/actuator/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
+    networks:
+      - egov-network
+
+  # Default Data Handler - seeds schemas and master data for new tenants
+  default-data-handler:
+    image: egovio/default-data-handler:crs_dataseeder-084b7cc
+    container_name: default-data-handler
+    depends_on:
+      egov-localization:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
+      EGOV_MDMS_HOST: http://mdms-backend:8094/
+      EGOV_LOCALIZATION_HOST: http://egov-localization:8096/
+      EGOV_USER_HOST: http://egov-user:8107/
+      EGOV_HRMS_HOST: http://egov-hrms:8092/
+      EGOV_WORKFLOW_HOST: http://egov-workflow-v2:8109/
+      EGOV_BOUNDARY_HOST: http://boundary-service:8081/
+      STATE_LEVEL_TENANT_ID: pg
+      JAVA_OPTS: -Xms128m -Xmx256m
     deploy:
       resources:
         limits:

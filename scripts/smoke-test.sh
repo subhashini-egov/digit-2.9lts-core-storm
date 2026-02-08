@@ -29,8 +29,8 @@ curl -sf "$BASE_URL/egov-idgen/health" > /dev/null && echo "OK" || { echo "FAIL"
 echo -n "Localization service... "
 curl -sf "$BASE_URL/localization/actuator/health" > /dev/null && echo "OK" || { echo "FAIL"; exit 1; }
 
-echo -n "Location service... "
-curl -sf "$BASE_URL/egov-location/health" > /dev/null && echo "OK" || { echo "FAIL"; exit 1; }
+echo -n "Location service (boundary-service)... "
+curl -sf "$BASE_URL/boundary-service/actuator/health" > /dev/null && echo "OK" || { echo "FAIL"; exit 1; }
 
 echo -n "Access Control service... "
 curl -sf "$BASE_URL/access/health" > /dev/null && echo "OK" || { echo "FAIL"; exit 1; }
