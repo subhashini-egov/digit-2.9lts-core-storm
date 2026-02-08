@@ -998,11 +998,7 @@ services:
         condition: service_completed_successfully
       mdms-security-seed:
         condition: service_completed_successfully
-      localization-seed:
-        condition: service_completed_successfully
       egov-workflow-v2:
-        condition: service_healthy
-      egov-localization:
         condition: service_healthy
       egov-accesscontrol:
         condition: service_healthy

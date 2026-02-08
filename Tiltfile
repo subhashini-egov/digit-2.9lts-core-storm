@@ -121,7 +121,7 @@ else:
 # Load docker-compose configuration
 # Note: wait=True blocks until ALL containers are healthy, which is too slow
 # Instead, rely on docker-compose depends_on with service_healthy conditions
-docker_compose('./docker-compose.deploy.yaml')
+docker_compose('./docker-compose.yml')
 
 # ==================== Infrastructure ====================
 dc_resource('postgres-db', labels=['infrastructure'])
@@ -221,9 +221,6 @@ dc_resource('digit-ui', labels=['frontend'],
     ])
 
 # ==================== Seed Jobs ====================
-dc_resource('db-migrations', labels=['seeds'], auto_init=True,
-    resource_deps=['pgbouncer'],
-)
 dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-backend'],
 )
@@ -232,9 +229,6 @@ dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True,
 )
 dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-tenant-seed'],
-)
-dc_resource('localization-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['egov-localization'],
 )
 dc_resource('db-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-tenant-seed', 'mdms-workflow-seed', 'mdms-security-seed', 'localization-seed', 'egov-workflow-v2', 'egov-accesscontrol'],
