@@ -1,0 +1,339 @@
+services:
+  postgres-db:
+    image: postgres:16
+    container_name: docker-postgres
+    environment:
+      POSTGRES_USER: egov
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      POSTGRES_DB: egov
+    volumes:
+      - postgres_data:/var/lib/docker-postgresql/data
+    ports:
+      - 15432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egov"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - egov-network
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: digit-pgbouncer
+    environment:
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+      DB_USER: egov
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      DB_NAME: egov
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      AUTH_TYPE: scram-sha-256
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "egov"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      egov-network:
+        aliases:
+          - postgres
+
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    container_name: digit-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --memory
+      - 256M
+      - --overprovisioned
+      - --node-id
+      - '0'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr
+      - PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - PLAINTEXT://redpanda:8082
+    ports:
+      - 19092:9092
+      - 18082:8082
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      egov-network:
+        aliases:
+          - kafka
+          - kafka-v2.kafka-cluster
+
+  redis:
+    image: redis:7.2.4
+    container_name: digit-redis
+    ports:
+      - 16379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - egov-network
+
+  mdms-backend:
+    image: egovio/mdms-v2:v2.9.2-4a60f20
+    container_name: mdms-backend
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_USERNAME: egov
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      SPRING_FLYWAY_ENABLED: 'true'
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SERVER_PORT: 8094
+      OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8094/mdms-v2/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 45s
+    networks:
+      - egov-network
+
+  egov-mdms-service:
+    image: nginx:alpine
+    container_name: egov-mdms-service
+    depends_on:
+      mdms-backend:
+        condition: service_healthy
+    volumes:
+      - ./nginx/mdms-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - 18094:8094
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8094/mdms-v2/v1/_search' -H 'Content-Type: application/json' -d '{\"RequestInfo\":{\"apiId\":\"health\"},\"MdmsCriteria\":{\"tenantId\":\"pg\",\"moduleDetails\":[{\"moduleName\":\"tenant\",\"masterDetails\":[{\"name\":\"tenants\"}]}]}}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - egov-network
+
+  mdms-tenant-seed:
+    image: postgres:16
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
+    volumes:
+      - ./db/tenant-seed.sql:/tenant-seed.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for MDMS tables to be created by Flyway...';
+        until [ \"$(psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -tAc \"SELECT to_regclass('public.eg_mdms_schema_definition') IS NOT NULL\" 2>/dev/null)\" = \"t\" ]; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'MDMS tables ready. Seeding tenant master...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /tenant-seed.sql
+        echo 'Tenant seed complete'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
+  mdms-security-seed:
+    image: postgres:16
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+    volumes:
+      - ./db/mdms-security-seed.sql:/security-seed.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for MDMS tables...';
+        until [ \"$(psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -tAc \"SELECT to_regclass('public.eg_mdms_schema_definition') IS NOT NULL\" 2>/dev/null)\" = \"t\" ]; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'Seeding Security MDMS configs...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /security-seed.sql
+        echo 'Security MDMS seed complete'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
+  db-seed:
+    image: postgres:16
+    container_name: db-seed-container
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      egov-mdms-service:
+        condition: service_healthy
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+      mdms-security-seed:
+        condition: service_completed_successfully
+      mdms-backend:
+        condition: service_healthy
+    volumes:
+      - ./db/seed.sql:/seed.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for MDMS tables...';
+        until [ \"$(psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -tAc \"SELECT to_regclass('public.eg_mdms_schema_definition') IS NOT NULL\" 2>/dev/null)\" = \"t\" ]; do
+          echo 'MDMS tables not ready, waiting...';
+          sleep 2;
+        done;
+        echo 'Running seed.sql...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -f /seed.sql;
+        echo 'Done loading seed data'
+      "
+    networks:
+      - egov-network
+    restart: "no"
+
+  egov-enc-service:
+    image: egovio/egov-enc-service:v2.9.2-4a60f20
+    container_name: egov-enc-service
+    depends_on:
+      egov-mdms-service:
+        condition: service_healthy
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_USERNAME: egov
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      SPRING_FLYWAY_ENABLED: 'true'
+      SERVER_PORT: 1234
+      OTEL_TRACES_EXPORTER: none
+      MASTER_PASSWORD: asd@#$@$!132123
+      MASTER_SALT: qweasdzx
+      MASTER_INITIALVECTOR: qweasdzxqwea
+      MASTER_PASSWORD_PROVIDER: software
+      EGOV_MDMS_HOST: http://egov-mdms-service:8094
+      EGOV_MDMS_SEARCH_ENDPOINT: /mdms-v2/v1/_search
+      EGOV_STATE_LEVEL_TENANT_ID: pg
+      STATE_LEVEL_TENANT_ID: pg.citya
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
+    ports:
+      - 11234:1234
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:1234/egov-enc-service/actuator/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - egov-network
+
+  egov-user:
+    image: egovio/egov-user:master-fa75ba8
+    container_name: egov-user
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      egov-enc-service:
+        condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
+      mdms-tenant-seed:
+        condition: service_completed_successfully
+      mdms-security-seed:
+        condition: service_completed_successfully
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_USERNAME: egov
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      FLYWAY_ENABLED: 'true'
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      FLYWAY_USER: egov
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      LOGGING_LEVEL_ORG_FLYWAYDB: DEBUG
+      KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SERVER_PORT: 8107
+      EGOV_MDMS_HOST: http://egov-mdms-service:8094
+      EGOV_MDMS_SEARCH_ENDPOINT: /mdms-v2/v1/_search
+      MDMS_HOST: http://egov-mdms-service:8094
+      MDMS_V2_HOST: http://egov-mdms-service:8094
+      EGOV_MDMS_V2_HOST: http://egov-mdms-service:8094
+      MDMS_SEARCH_ENDPOINT: /mdms-v2/v1/_search
+      EGOV_OTP_HOST: http://egov-user:8107
+      EGOV_ENC_HOST: http://egov-enc-service:1234
+      EGOV_IDGEN_HOST: http://egov-idgen:8088
+      EGOV_ACCESSCONTROL_HOST: http://egov-accesscontrol:8090
+      EGOV_STATE_LEVEL_TENANT_ID: pg
+      STATE_LEVEL_TENANT_ID: pg
+      OTEL_TRACES_EXPORTER: none
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m
+    ports:
+      - 18107:8107
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8107/user/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - egov-network
+
+networks:
+  egov-network:
+    driver: bridge
+
+volumes:
+  postgres_data: null

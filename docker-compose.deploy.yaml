@@ -275,8 +275,6 @@ services:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
-      db-migrations:
-        condition: service_completed_successfully
     environment:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
@@ -284,8 +282,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      SPRING_FLYWAY_ENABLED: 'false'
+      SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      SPRING_FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       EGOV_MDMS_HOST: http://egov-mdms-service:8094/
       MDMS_HOST: http://egov-mdms-service:8094/
       EGOV_MDMS_SEARCH_ENDPOINT: mdms-v2/v1/_search
@@ -308,23 +310,6 @@ services:
     networks:
     - egov-network
 
-  # Unified database migrations for all DIGIT services
-  # Runs all Flyway migrations in one container before services start
-  db-migrations:
-    build:
-      context: ./docker/db-migrations
-      dockerfile: Dockerfile
-    depends_on:
-      pgbouncer:
-        condition: service_healthy
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/egov
-      FLYWAY_USER: egov
-      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
-    networks:
-      - egov-network
-    restart: "no"
-
   egov-user:
     image: egovio/egov-user:master-fa75ba8
     container_name: egov-user
@@ -337,20 +322,32 @@ services:
         condition: service_healthy
       egov-enc-service:
         condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
       mdms-tenant-seed:
         condition: service_completed_successfully
       mdms-security-seed:
         condition: service_completed_successfully
-      db-migrations:
+      egov-user-schema-init:
         condition: service_completed_successfully
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/egov?currentSchema=egov_user
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      FLYWAY_ENABLED: 'false'
+      # Flyway enabled - run egov-user migrations on startup (Spring Boot 1.x uses flyway.*)
+      FLYWAY_ENABLED: 'true'
+      FLYWAY_URL: jdbc:postgresql://postgres-db:5432/egov?currentSchema=egov_user
+      FLYWAY_USER: egov
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      FLYWAY_SCHEMAS: egov_user
+      FLYWAY_DEFAULT_SCHEMA: egov_user
+      FLYWAY_TABLE: egov_user_schema_version
+      FLYWAY_BASELINE_ON_MIGRATE: 'true'
+      FLYWAY_VALIDATE_ON_MIGRATE: 'false'
+      LOGGING_LEVEL_ORG_FLYWAYDB: DEBUG
+      SPRING_DATASOURCE_HIKARI_CONNECTION_INIT_SQL: "SET search_path TO egov_user"
       # Kafka config - use property name expected by egov-user
       KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -381,6 +378,26 @@ services:
       start_period: 120s
     networks:
     - egov-network
+
+  # Create separate schema for egov-user to avoid constraint name collisions
+  egov-user-schema-init:
+    image: postgres:16
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    entrypoint: >
+      bash -c "
+        echo 'Ensuring egov_user schema exists...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres-db:5432/egov -v ON_ERROR_STOP=1 -c \"
+          CREATE SCHEMA IF NOT EXISTS egov_user;
+          GRANT USAGE ON SCHEMA egov_user TO egov;
+          GRANT CREATE ON SCHEMA egov_user TO egov;
+        \";
+        echo 'egov_user schema ready';
+      "
+    networks:
+      - egov-network
+    restart: "no"
 
   egov-workflow-v2:
     image: egovio/egov-workflow-v2:v2.9.2-4a60f20
@@ -442,16 +459,30 @@ services:
         condition: service_healthy
       egov-mdms-service:
         condition: service_healthy
-      db-migrations:
-        condition: service_completed_successfully
+      egov-user:
+        condition: service_healthy
+      egov-workflow-v2:
+        condition: service_healthy
+      boundary-service:
+        condition: service_healthy
+      egov-filestore:
+        condition: service_healthy
+      egov-idgen:
+        condition: service_healthy
+      egov-accesscontrol:
+        condition: service_healthy
+      mdms-backend:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:otel:postgresql://postgres:5432/egov
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
-      # Flyway disabled - migrations run by db-migrations container
-      SPRING_FLYWAY_ENABLED: 'false'
+      SPRING_FLYWAY_ENABLED: 'true'
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_FLYWAY_USER: egov
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
@@ -466,6 +497,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
     networks:
     - egov-network
 
@@ -562,6 +598,8 @@ services:
     image: egovio/default-data-handler:crs_dataseeder-084b7cc
     container_name: default-data-handler
     depends_on:
+      egov-localization:
+        condition: service_healthy
       mdms-backend:
         condition: service_healthy
       redpanda:
@@ -577,6 +615,11 @@ services:
       EGOV_BOUNDARY_HOST: http://boundary-service:8081/
       STATE_LEVEL_TENANT_ID: pg
       JAVA_OPTS: -Xms128m -Xmx256m
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
     networks:
       - egov-network
 
@@ -955,11 +998,7 @@ services:
         condition: service_completed_successfully
       mdms-security-seed:
         condition: service_completed_successfully
-      localization-seed:
-        condition: service_completed_successfully
       egov-workflow-v2:
-        condition: service_healthy
-      egov-localization:
         condition: service_healthy
       egov-accesscontrol:
         condition: service_healthy
@@ -1094,6 +1133,11 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+          cpus: '1'
     networks:
       - egov-network
 

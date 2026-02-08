@@ -36,14 +36,6 @@ endpoints:
     conditions:
       - "[CONNECTED] == true"
 
-  - name: Elasticsearch
-    group: Infrastructure
-    url: "http://elasticsearch:9200/_cluster/health"
-    interval: 30s
-    conditions:
-      - "[STATUS] == 200"
-      - "[BODY].status == any(green, yellow)"
-
   # ==================== Core Services ====================
   - name: MDMS Service
     group: Core Services
@@ -87,14 +79,7 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
 
-  - name: Location Service
-    group: Core Services
-    url: "http://egov-location:8084/egov-location/health"
-    interval: 30s
-    conditions:
-      - "[STATUS] == 200"
-
-  - name: Boundary Service
+  - name: Location Service (boundary-service)
     group: Core Services
     url: "http://boundary-service:8081/boundary-service/actuator/health"
     interval: 30s

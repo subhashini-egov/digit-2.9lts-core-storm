@@ -153,13 +153,13 @@ dc_resource('egov-enc-service', labels=['core-services'],
     ])
 
 dc_resource('egov-idgen', labels=['core-services'],
-    resource_deps=['egov-mdms-service', 'db-migrations'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18088/egov-idgen/health', 'Health'),
     ])
 
 dc_resource('egov-user', labels=['core-services'],
-    resource_deps=['egov-enc-service', 'mdms-security-seed', 'db-migrations'],
+    resource_deps=['egov-enc-service', 'mdms-security-seed'],
     links=[
         link('http://localhost:18107/user/health', 'Health'),
     ])
@@ -171,7 +171,7 @@ dc_resource('egov-workflow-v2', labels=['core-services'],
     ])
 
 dc_resource('egov-localization', labels=['core-services'],
-    resource_deps=['egov-mdms-service', 'db-migrations'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18096/localization/actuator/health', 'Health'),
     ])
@@ -221,9 +221,6 @@ dc_resource('digit-ui', labels=['frontend'],
     ])
 
 # ==================== Seed Jobs ====================
-dc_resource('db-migrations', labels=['seeds'], auto_init=True,
-    resource_deps=['pgbouncer'],
-)
 dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-backend'],
 )
@@ -232,9 +229,6 @@ dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True,
 )
 dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-tenant-seed'],
-)
-dc_resource('localization-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['egov-localization'],
 )
 dc_resource('db-seed', labels=['seeds'], auto_init=True,
     resource_deps=['mdms-tenant-seed', 'mdms-workflow-seed', 'mdms-security-seed', 'localization-seed', 'egov-workflow-v2', 'egov-accesscontrol'],
@@ -275,7 +269,7 @@ dc_resource('egov-bndry-mgmnt', labels=['core-services'],
         link('http://localhost:18081/boundary-management/actuator/health', 'Health'),
     ])
 dc_resource('default-data-handler', labels=['core-services'],
-    resource_deps=['mdms-backend'],
+    resource_deps=['mdms-backend', 'egov-localization'],
 )
 
 # ==================== Local Resources ====================

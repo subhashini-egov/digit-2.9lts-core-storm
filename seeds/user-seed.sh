@@ -22,6 +22,22 @@ for i in $(seq 1 $MAX_RETRIES); do
   sleep $RETRY_INTERVAL
 done
 
+# Wait for egov-user DB schema to be queryable (egov_user schema)
+echo "Waiting for egov-user schema to be ready..."
+for i in $(seq 1 $MAX_RETRIES); do
+  RESPONSE=$(curl -s -X POST "$EGOV_USER_HOST/user/v1/_search" \
+    -H 'Content-Type: application/json' \
+    -d '{"RequestInfo":{"apiId":"digit","ver":"1.0"},"tenantId":"pg","userName":"__schema_check__"}')
+  if echo "$RESPONSE" | grep -q 'relation "eg_user" does not exist'; then
+    echo "Attempt $i/$MAX_RETRIES - eg_user table not visible yet, waiting ${RETRY_INTERVAL}s..."
+    sleep $RETRY_INTERVAL
+    continue
+  fi
+  # Any other response means schema is reachable (even if user not found)
+  echo "egov-user schema is queryable."
+  break
+done
+
 # Function to create user
 create_user() {
   local USERNAME=$1
