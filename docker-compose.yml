@@ -260,6 +260,8 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVER_PORT: 8094
       OTEL_TRACES_EXPORTER: none
+      MANAGEMENT_TRACING_ENABLED: "false"
+      MANAGEMENT_OBSERVATIONS_ENABLED: "false"
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx192m
     healthcheck:
       # Check Spring Boot health - Flyway runs before app context starts, so health implies migrations done
@@ -271,8 +273,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 300M
-          cpus: '0.25'
+          memory: 512M
+          cpus: '1'
     networks:
     - egov-network
 
@@ -366,21 +368,26 @@ services:
         condition: service_completed_successfully
       mdms-security-seed:
         condition: service_completed_successfully
+      egov-user-schema-init:
+        condition: service_completed_successfully
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/egov
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/egov?currentSchema=egov_user
       SPRING_DATASOURCE_USERNAME: egov
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
       # Flyway enabled - run egov-user migrations on startup (Spring Boot 1.x uses flyway.*)
       FLYWAY_ENABLED: 'true'
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/egov
+      FLYWAY_URL: jdbc:postgresql://postgres-db:5432/egov?currentSchema=egov_user
       FLYWAY_USER: egov
       FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-egov123}
+      FLYWAY_SCHEMAS: egov_user
+      FLYWAY_DEFAULT_SCHEMA: egov_user
       FLYWAY_TABLE: egov_user_schema_version
       FLYWAY_BASELINE_ON_MIGRATE: 'true'
       FLYWAY_VALIDATE_ON_MIGRATE: 'false'
       LOGGING_LEVEL_ORG_FLYWAYDB: DEBUG
+      SPRING_DATASOURCE_HIKARI_CONNECTION_INIT_SQL: "SET search_path TO egov_user"
       # Kafka config - use property name expected by egov-user
       KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG: redpanda:9092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -416,6 +423,26 @@ services:
           cpus: '0.5'
     networks:
     - egov-network
+
+  # Create separate schema for egov-user to avoid constraint name collisions
+  egov-user-schema-init:
+    image: postgres:16
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+    entrypoint: >
+      bash -c "
+        echo 'Ensuring egov_user schema exists...';
+        psql postgresql://egov:${POSTGRES_PASSWORD:-egov123}@postgres:5432/egov -v ON_ERROR_STOP=1 -c \"
+          CREATE SCHEMA IF NOT EXISTS egov_user;
+          GRANT USAGE ON SCHEMA egov_user TO egov;
+          GRANT CREATE ON SCHEMA egov_user TO egov;
+        \";
+        echo 'egov_user schema ready';
+      "
+    networks:
+      - egov-network
+    restart: "no"
 
   egov-workflow-v2:
     image: egovio/egov-workflow-v2:v2.9.2-4a60f20
@@ -739,6 +766,7 @@ services:
       STATE_LEVEL_TENANT_ID: pg
       EGOV_STATELEVEL_TENANT: pg
       HRMS_SYSTEM_USERNAME: INTERNAL_USER
+      SPRING_FLYWAY_TABLE: egov_hrms_schema_version
     ports:
       - 18092:8092
     healthcheck:
