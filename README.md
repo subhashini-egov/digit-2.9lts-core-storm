@@ -21,6 +21,7 @@ git clone <this-repo>
 cd <this-repo>
 
 # 3. Start with Tilt (recommended)
+export CCRS_PATH='<file path to CCRS repo>' ( from step 1)
 tilt up
 
 # 4. Open the Tilt dashboard and verify the health of services
