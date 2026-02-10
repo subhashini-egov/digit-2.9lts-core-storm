@@ -10,7 +10,7 @@ load('ext://uibutton', 'cmd_button', 'location')
 
 # ==================== Configuration ====================
 # Path to CCRS code (for live UI and PGR development)
-CCRS_PATH = os.getenv('CCRS_PATH', '../Citizen-Complaint-Resolution-System')
+CCRS_PATH = '/Users/subha/Code/Citizen-Complaint-Resolution-System'
 CCRS_REPO_URL = 'https://github.com/egovernments/Citizen-Complaint-Resolution-System.git'
 
 # Auto-clone CCRS repo if it doesn't exist
@@ -121,7 +121,7 @@ else:
 # Load docker-compose configuration
 # Note: wait=True blocks until ALL containers are healthy, which is too slow
 # Instead, rely on docker-compose depends_on with service_healthy conditions
-docker_compose('./docker-compose.yml')
+docker_compose('./docker-compose.db-dump.yml')
 
 # ==================== Infrastructure ====================
 dc_resource('postgres-db', labels=['infrastructure'])
@@ -147,31 +147,31 @@ dc_resource('egov-mdms-service', labels=['core-services'],
     ])
 
 dc_resource('egov-enc-service', labels=['core-services'],
-    resource_deps=['egov-mdms-service', 'mdms-tenant-seed'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:11234/egov-enc-service/actuator/health', 'Health'),
     ])
 
 dc_resource('egov-idgen', labels=['core-services'],
-    resource_deps=['egov-mdms-service', 'db-migrations'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18088/egov-idgen/health', 'Health'),
     ])
 
 dc_resource('egov-user', labels=['core-services'],
-    resource_deps=['egov-enc-service', 'mdms-security-seed', 'db-migrations'],
+    resource_deps=['egov-enc-service'],
     links=[
         link('http://localhost:18107/user/health', 'Health'),
     ])
 
 dc_resource('egov-workflow-v2', labels=['core-services'],
-    resource_deps=['egov-idgen', 'mdms-workflow-seed'],
+    resource_deps=['egov-idgen'],
     links=[
         link('http://localhost:18109/egov-workflow-v2/health', 'Health'),
     ])
 
 dc_resource('egov-localization', labels=['core-services'],
-    resource_deps=['egov-mdms-service', 'db-migrations'],
+    resource_deps=['egov-mdms-service'],
     links=[
         link('http://localhost:18096/localization/actuator/health', 'Health'),
     ])
@@ -204,7 +204,7 @@ dc_resource('kong', labels=['gateway'],
 
 # ==================== PGR Services ====================
 dc_resource('pgr-services', labels=['pgr'],
-    resource_deps=['egov-idgen', 'egov-user', 'egov-workflow-v2', 'egov-localization', 'db-seed'],
+    resource_deps=['egov-idgen', 'egov-user', 'egov-workflow-v2', 'egov-localization'],
     links=[
         link('http://localhost:18083/pgr-services/health', 'Health'),
     ])
@@ -220,41 +220,9 @@ dc_resource('digit-ui', labels=['frontend'],
         link('http://localhost:18000/digit-ui/', 'UI via Kong'),
     ])
 
-# ==================== Seed Jobs ====================
-dc_resource('db-migrations', labels=['seeds'], auto_init=True,
-    resource_deps=['pgbouncer'],
-)
-dc_resource('mdms-tenant-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['mdms-backend'],
-)
-dc_resource('mdms-workflow-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['mdms-tenant-seed'],
-)
-dc_resource('mdms-security-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['mdms-tenant-seed'],
-)
-dc_resource('localization-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['egov-localization'],
-)
-dc_resource('db-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['mdms-tenant-seed', 'mdms-workflow-seed', 'mdms-security-seed', 'localization-seed', 'egov-workflow-v2', 'egov-accesscontrol'],
-)
-dc_resource('pgr-workflow-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['egov-workflow-v2', 'mdms-workflow-seed'],
-)
-dc_resource('user-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['egov-user', 'egov-enc-service', 'db-seed'],
-)
-dc_resource('mdms-bndry-mgmnt-seed', labels=['seeds'], auto_init=True,
-    resource_deps=['mdms-tenant-seed'],
-)
-
 # ==================== HRMS ====================
-dc_resource('hrms-prereq-gate', labels=['hrms'], auto_init=True,
-    resource_deps=['egov-user', 'user-seed'],
-)
 dc_resource('egov-hrms', labels=['hrms'],
-    resource_deps=['hrms-prereq-gate', 'egov-mdms-service', 'egov-idgen', 'egov-user'],
+    resource_deps=['egov-mdms-service', 'egov-idgen', 'egov-user'],
     links=[
         link('http://localhost:18092/egov-hrms/employees/_search', 'Health'),
     ])
@@ -270,13 +238,10 @@ dc_resource('egov-filestore', labels=['core-services'],
         link('http://localhost:18083/filestore/health', 'Health'),
     ])
 dc_resource('egov-bndry-mgmnt', labels=['core-services'],
-    resource_deps=['boundary-service', 'egov-filestore', 'mdms-bndry-mgmnt-seed'],
+    resource_deps=['boundary-service', 'egov-filestore'],
     links=[
         link('http://localhost:18081/boundary-management/actuator/health', 'Health'),
     ])
-dc_resource('default-data-handler', labels=['core-services'],
-    resource_deps=['mdms-backend'],
-)
 
 # ==================== Local Resources ====================
 
