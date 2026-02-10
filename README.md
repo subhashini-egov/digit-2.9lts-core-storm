@@ -2,6 +2,13 @@
 
 Run a complete DIGIT development environment locally with all core services, PGR module, and the DIGIT UI.
 
+## Prerequisites
+Ensure you have the following tools installed on your machine:
+1. `docker compose`
+2. `tilt`
+3. `npm` 
+4. Postman and newman CLI
+
 ## Quick Start
 
 ```bash
