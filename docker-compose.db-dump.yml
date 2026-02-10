@@ -437,7 +437,7 @@ services:
       resources:
         limits:
           memory: 320M
-          cpus: '0.25'
+          cpus: '1'
     networks:
       - egov-network
 
@@ -747,7 +747,7 @@ services:
       - egov-network
 
   pgr-services:
-    image: egovio/pgr-services:v2.9.0-8b3aa24-4
+    image: egovio/pgr-services:multiarch-d448cb7
     container_name: pgr-services
     depends_on:
       pgbouncer:
@@ -815,7 +815,7 @@ services:
       - egov-network
 
   digit-ui:
-    image: egovio/digit-ui:v0.0.1-e3046cc-87
+    image: egovio/digit-ui:multiarch-d448cb7
     container_name: digit-ui
     ports:
       - "18080:80"
