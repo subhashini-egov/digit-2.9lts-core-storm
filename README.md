@@ -44,6 +44,33 @@ curl -X POST "http://localhost:18088/egov-idgen/id/_generate" \
   -d '{"RequestInfo":{"apiId":"digit","ver":"1.0"},"idRequests":[{"tenantId":"pg","idName":"pgr.servicerequestid"}]}'
 ```
 
+## Postman Collections (Newman)
+
+Run the Postman collections via `scripts/run-postman.sh`. Set these environment variables before running to target your environment:
+
+**Core validation collection**
+- `BASE_URL` (example: `http://localhost`)
+
+**Complaints demo collection**
+- `URL` (example: `http://localhost:18000`)
+- `USERNAME` (example: `ADMIN`)
+- `PASSWORD` (example: `eGov@123`)
+- `CITY_TENANT` (example: `pg.citya`)
+- `STATE_TENANT` (example: `pg`)
+- `USER_TYPE` (example: `EMPLOYEE`)
+- `AUTHORIZATION` (example: `Basic ZWdvdi11c2VyLWNsaWVudDo=`)
+
+Example:
+```bash
+BASE_URL=http://localhost \
+URL=http://localhost:18000 \
+CITY_TENANT=pg.citya \
+STATE_TENANT=pg \
+USERNAME=GRO \
+PASSWORD=eGov@123 \
+scripts/run-postman.sh all
+```
+
 ## End-to-End Testing
 
 ### Test Credentials
