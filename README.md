@@ -12,12 +12,13 @@ Ensure you have the following tools installed on your machine:
 ## Quick Start
 
 ```bash
-# 1. Clone this repo
-git clone <this-repo> digit-core
-cd digit-core
 
-# 2. Clone CCRS repo (UI + PGR configs) as sibling directory
+# 1. Clone CCRS repo (UI + PGR configs)
 git clone https://github.com/egovernments/Citizen-Complaint-Resolution-System.git ../Citizen-Complaint-Resolution-System
+
+# 2. Clone this repo
+git clone <this-repo> 
+cd <this-repo>
 
 # 3. Start with Tilt (recommended)
 tilt up
