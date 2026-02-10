@@ -121,7 +121,7 @@ else:
 # Load docker-compose configuration
 # Note: wait=True blocks until ALL containers are healthy, which is too slow
 # Instead, rely on docker-compose depends_on with service_healthy conditions
-docker_compose('./docker-compose.db-dump.yml')
+docker_compose('./docker-compose.yml')
 
 # ==================== Infrastructure ====================
 dc_resource('postgres-db', labels=['infrastructure'])
